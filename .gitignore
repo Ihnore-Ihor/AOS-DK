@@ -73,3 +73,6 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+AOS_DK_Build/Windows/AOS_DK/Binaries/Win64/AOS_DK.pdb
+AOS_DK_Build/Windows/AOS_DK/Content/Paks/AOS_DK-Windows.ucas
