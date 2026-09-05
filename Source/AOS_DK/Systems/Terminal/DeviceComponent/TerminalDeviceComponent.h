@@ -3,20 +3,11 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "TerminalDeviceComponent.generated.h"
+#include "Enums.h"
 
-UENUM(BlueprintType)
-enum class EProcessState : uint8 
-{
-	Runnable UMETA(DisplayName = "Runnable waiting for context switch"),
-	Running UMETA(DisplayName = "Runnning executes in cpu"),
-	Stopped UMETA(DisplayName = "Stopped waiting for sigcont"),
-	UninterruptibleSleep UMETA(DisplayName = "UninterruptibleSleep waiting for specific signal or resources"),
-	InterruptibleSleep UMETA(DisplayName = "InterruptibleSleep waiting for signal or resources"),
-	Deadlock UMETA(DisplayName = "Deadlock waiting for resources in cycle with another process(-es)"),
-	Zombie UMETA(DisplayName = "Zombie waiting for parent to release him"),
-	Orphan UMETA(DisplayName = "Orphan lost his parent"),
-	Reaped UMETA(DisplayName = "Reaped releases from process table")
-};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnProcessStateChangedDelegate, EProcessState, CurrentProcessState);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnVirtualFileChangedDelegate, FString, Filename, FString, FileContent);
 
 UCLASS(ClassGroup=(Terminal), meta=(BlueprintSpawnableComponent))
 class AOS_DK_API UTerminalDeviceComponent : public UActorComponent
@@ -27,10 +18,24 @@ public:
 	// Sets default values for this component's properties
 	UTerminalDeviceComponent();
 
-public:
+protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AOS_DK|Terminal")
 	EProcessState CurrentProcessState;
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AOS_DK|Terminal")
-	TMap<FString, FString> VirtualFiles; //key - filename, value - file content
+	TMap<FString, FString> VirtualFiles; //key - filename, value - file content TODO: change to TMap<FString, FVirtualFile> where FVirtualFile is a struct with Content, bRequiresSudo, FilePermission
+	
+	
+	UPROPERTY(BlueprintAssignable, Category = "AOS_DK|Terminal")
+	FOnProcessStateChangedDelegate ProcessStateChangedDelegate;
+	
+	UPROPERTY(BlueprintAssignable, Category = "AOS_DK|Terminal")
+	FOnVirtualFileChangedDelegate VirtualFileChangedDelegate;
+	
+public:
+	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Terminal")
+	void SetProcessState(EProcessState NewProcessState);
+	
+	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Terminal", meta = (ExpandEnumAsExecs = "UpdateResult"))
+	void UpdateVirtualFiles(FString Filename, FString NewValue, EFileUpdateResult& UpdateResult, FString& UpdateMessage);
 };
