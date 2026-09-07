@@ -14,10 +14,6 @@ class AOS_DK_API UTerminalDeviceComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-public:
-	// Sets default values for this component's properties
-	UTerminalDeviceComponent();
-
 protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AOS_DK|Terminal")
 	EProcessState CurrentProcessState;
