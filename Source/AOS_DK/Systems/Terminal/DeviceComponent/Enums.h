@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 UENUM(BlueprintType)
-enum class EProcessState : uint8 
+enum class EProcessState : uint8
 {
 	Runnable UMETA(DisplayName = "Runnable waiting for context switch"),
 	Running UMETA(DisplayName = "Runnning executes in cpu"),
@@ -17,8 +17,7 @@ enum class EProcessState : uint8
 UENUM(BlueprintType)
 enum class EFileUpdateResult : uint8
 {
-	NotFound UMETA(DisplayName = "bash: [/path/to/file]: No such file or directory"),	
-	PermissionDenied UMETA(DisplayName = "bash: [file]: Permission denied"),
-	NotAFile UMETA(DisplayName = "bash: [file]: Is a directory"),
 	Success UMETA(DisplayName = "OK"),
+	NotFound UMETA(DisplayName = "File not found"),
+	PermissionDenied UMETA(DisplayName = "Permission denied")
 };

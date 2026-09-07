@@ -14,7 +14,10 @@ class AOS_DK_API UTerminalDeviceComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-protected:
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Terminal")
+	FString DeviceID;
+	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "AOS_DK|Terminal")
 	EProcessState CurrentProcessState;
 	

@@ -2,7 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "CommandsInfo/CommandsInfo.h"
 #include "TerminalActor.generated.h"
 
 UCLASS()
@@ -10,6 +9,8 @@ class AOS_DK_API ATerminalActor : public AActor
 {
 	GENERATED_BODY()
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Terminal|Info")
+	FString DevicePath;
 private:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Terminal|Info")
 	UDataTable* CommandDataTable;
@@ -29,4 +30,8 @@ public:
 private:
 	FString HelpCommandFormer() const;
 	FString HelpCommandTextWrapper(const int LongestLeftLength, const FString &LeftText, const FString &RightText, int RowLength = 80) const;
+	
+	FString LsCommandFormer() const;
+	
+	FString CatCommandFormer(TArray<FString> InputTokens) const;
 };

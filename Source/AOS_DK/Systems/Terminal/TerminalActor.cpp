@@ -1,4 +1,7 @@
 ﻿#include "TerminalActor.h"
+#include "CommandsInfo/CommandsInfo.h"
+#include "DeviceComponent/TerminalDeviceComponent.h"
+#include "Misc/Paths.h"
 
 void ATerminalActor::BeginPlay()
 {
@@ -31,6 +34,14 @@ FString ATerminalActor::ProcessInput(FString RawInput)
 	if (InputCommand == "help")
 	{
 		return HelpCommandFormer();
+	}
+	if (InputCommand == "ls")
+	{
+		return LsCommandFormer();
+	}
+	if (InputCommand == "cat")
+	{
+		return CatCommandFormer(InputTokens);
 	}
 	//rest of the commands
 	return FString::Printf(TEXT("bash: %s: command not found"), *InputCommand);
@@ -132,4 +143,83 @@ FString ATerminalActor::HelpCommandTextWrapper(const int LongestLeftLength, cons
 
 	Output.Append(TEXT("\n")); // Close the entire block with a line break
 	return Output;
+}
+
+FString ATerminalActor::LsCommandFormer() const
+{
+	// 1. Collect all names and find the longest one
+	TArray<FString> DeviceNames;
+	int32 MaxLen = 0;
+    
+	for (AActor* Device : ConnectedDevices)
+	{
+		if (Device)
+		{
+			// Looking for OUR component on this Actor
+			UTerminalDeviceComponent* TerminalComp = Device->FindComponentByClass<UTerminalDeviceComponent>();
+			if (TerminalComp)
+			{
+				// Take its unique name
+				FString Name = TerminalComp->DeviceID;
+				// If the level designer forgot to enter a name, give a placeholder so there is no emptiness
+				if (Name.IsEmpty()) Name = "unnamed_device";
+				DeviceNames.Add(Name);
+				MaxLen = FMath::Max(MaxLen, Name.Len());
+			}
+		}
+	}
+	// 2. Build the grid
+	FString Output = "";
+	int32 ColWidth = MaxLen + 4; // Longest name + 4 spaces of padding
+	int32 MaxCols = 80 / ColWidth; // How many columns fit into 80 screen characters?
+	if (MaxCols < 1) MaxCols = 1;  // Protection: minimum 1 column
+	int32 CurrentCol = 0;
+	for (FString Name : DeviceNames)
+	{
+		// Print the name, filling the rest of the column with spaces
+		Output.Append(FString::Printf(TEXT("%-*s"), ColWidth, *Name));
+		CurrentCol++;
+		// If we reached the column limit - wrap to a new line
+		if (CurrentCol >= MaxCols)
+		{
+			Output.Append("\n");
+			CurrentCol = 0;
+		}
+	}
+	// Add a final line break if the last row was incomplete
+	if (CurrentCol > 0) 
+	{
+		Output.Append("\n");
+	}
+	return Output;
+}
+
+FString ATerminalActor::CatCommandFormer(TArray<FString> InputTokens) const
+{
+	if (InputTokens.Num() == 1)
+	{
+		return "bash: cat: missing operand";
+	}
+	FString DevicePath = FPaths::GetPath(InputTokens[1]);
+	FString FileName = FPaths::GetCleanFilename(InputTokens[1]);
+	for (AActor* Device : ConnectedDevices)
+	{
+		UTerminalDeviceComponent* TerminalComp = Device->FindComponentByClass<UTerminalDeviceComponent>();
+		if (TerminalComp)
+		{
+			if (TerminalComp->DeviceID == InputTokens[1])
+			{
+				return FString::Printf(TEXT("bash: %s: Is a directory"), *InputTokens[1]);
+			}
+			if (TerminalComp->DeviceID == DevicePath)
+			{
+				if (const FString* FileContent = TerminalComp->VirtualFiles.Find(FileName))
+				{
+					return *FileContent;
+				}
+				return FString::Printf(TEXT("bash: %s: No such file or directory"), *InputTokens[1]);
+			}
+		}
+	}
+	return FString::Printf(TEXT("bash: %s: No such file or directory"), *InputTokens[1]);
 }
