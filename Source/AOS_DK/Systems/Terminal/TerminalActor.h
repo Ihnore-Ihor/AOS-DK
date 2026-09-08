@@ -34,4 +34,9 @@ private:
 	FString LsCommandFormer() const;
 	
 	FString CatCommandFormer(TArray<FString> InputTokens) const;
+	
+	FString EchoCommandFormer(FString RawInput) const;
+	
+protected:
+	UTerminalDeviceComponent* GetTargetDevice(const FString& TargetPath, FString& OutFileName, FString& OutErrorMessage) const;	
 };

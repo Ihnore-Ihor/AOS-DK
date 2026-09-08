@@ -196,30 +196,83 @@ FString ATerminalActor::LsCommandFormer() const
 
 FString ATerminalActor::CatCommandFormer(TArray<FString> InputTokens) const
 {
-	if (InputTokens.Num() == 1)
+	if (InputTokens.Num() < 2) return "bash: cat: missing operand";
+
+	FString ErrorMessage, FileName;
+	UTerminalDeviceComponent* TargetComp = GetTargetDevice(InputTokens[1], FileName, ErrorMessage);
+	
+	if (!TargetComp) return ErrorMessage;
+
+	if (const FString* FileContent = TargetComp->VirtualFiles.Find(FileName))
 	{
-		return "bash: cat: missing operand";
+		return *FileContent + "\n";
 	}
-	FString DevicePath = FPaths::GetPath(InputTokens[1]);
-	FString FileName = FPaths::GetCleanFilename(InputTokens[1]);
+
+	return FString::Printf(TEXT("bash: %s: No such file or directory"), *InputTokens[1]);
+}
+
+FString ATerminalActor::EchoCommandFormer(FString RawInput) const
+{
+	if (RawInput.Len() <= 5) return "\n";
+	RawInput = RawInput.Mid(5);
+	
+	FString LeftText, RightText;
+	
+	if (RawInput.Split(TEXT(">"), &LeftText, &RightText))
+	{
+		LeftText.TrimStartAndEndInline();
+		if (LeftText.StartsWith("\"") && LeftText.EndsWith("\"")) 
+			LeftText = LeftText.Mid(1, LeftText.Len() - 2);
+		
+		FString ErrorMessage, FileName;
+		UTerminalDeviceComponent* TargetComp = GetTargetDevice(RightText, FileName, ErrorMessage);
+		
+		if (!TargetComp) return ErrorMessage;
+		
+		EFileUpdateResult UpdateFileResult;
+		FString UpdateFileMessage;
+		TargetComp->UpdateVirtualFiles(FileName, LeftText, UpdateFileResult, UpdateFileMessage);
+		
+		if (UpdateFileResult == EFileUpdateResult::Success) return "";
+		
+		return UpdateFileMessage;
+	}
+	
+	RawInput.TrimStartAndEndInline();
+	if (RawInput.StartsWith("\"") && RawInput.EndsWith("\"")) 
+		RawInput = RawInput.Mid(1, RawInput.Len() - 2);
+	
+	return RawInput;
+}
+
+
+
+
+UTerminalDeviceComponent* ATerminalActor::GetTargetDevice(const FString& TargetPath, FString& OutFileName, FString& OutErrorMessage) const
+{
+	FString DevicePath = FPaths::GetPath(TargetPath);
+	OutFileName = FPaths::GetCleanFilename(TargetPath);
+
 	for (AActor* Device : ConnectedDevices)
 	{
+		if (!Device) continue;
+
 		UTerminalDeviceComponent* TerminalComp = Device->FindComponentByClass<UTerminalDeviceComponent>();
 		if (TerminalComp)
 		{
-			if (TerminalComp->DeviceID == InputTokens[1])
+			if (TerminalComp->DeviceID == TargetPath)
 			{
-				return FString::Printf(TEXT("bash: %s: Is a directory"), *InputTokens[1]);
+				OutErrorMessage = FString::Printf(TEXT("bash: %s: Is a directory"), *TargetPath);
+				return nullptr;
 			}
+            
 			if (TerminalComp->DeviceID == DevicePath)
 			{
-				if (const FString* FileContent = TerminalComp->VirtualFiles.Find(FileName))
-				{
-					return *FileContent;
-				}
-				return FString::Printf(TEXT("bash: %s: No such file or directory"), *InputTokens[1]);
+				return TerminalComp;
 			}
 		}
 	}
-	return FString::Printf(TEXT("bash: %s: No such file or directory"), *InputTokens[1]);
+
+	OutErrorMessage = FString::Printf(TEXT("bash: %s: No such file or directory"), *TargetPath);
+	return nullptr;
 }
