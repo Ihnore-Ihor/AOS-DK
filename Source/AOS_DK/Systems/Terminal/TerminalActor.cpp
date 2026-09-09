@@ -15,6 +15,11 @@ void ATerminalActor::BeginPlay()
 			Commands.Add(Command.ToString().ToLower());
 		}
 	}
+	
+	CommandRouters.Add("help", [this](const FTerminalCommandContext& Prompt){return HelpCommandFormer(Prompt);});
+	CommandRouters.Add("ls", [this](const FTerminalCommandContext& Prompt){return LsCommandFormer(Prompt);});
+	CommandRouters.Add("cat", [this](const FTerminalCommandContext& Prompt){return CatCommandFormer(Prompt);});
+	CommandRouters.Add("echo", [this](const FTerminalCommandContext& Prompt){return EchoCommandFormer(Prompt);});
 }
 
 FString ATerminalActor::ProcessInput(FString RawInput)
@@ -22,33 +27,39 @@ FString ATerminalActor::ProcessInput(FString RawInput)
 	if (RawInput.IsEmpty()) //user pressed Enter on an empty prompt
 	{
 		return "";
-	} 
+	}
+	
+	FTerminalCommandContext Prompt;
+	Prompt.RawPrompt = RawInput;
+	
 	if (RawInput.StartsWith("#")) // user entered comment 
 	{
 		return ""; //but save in history chat as an entered command
 	}
-	TArray<FString> InputTokens; 
-	RawInput.ParseIntoArray(InputTokens, TEXT(" "),true);
 	
-	FString InputCommand = InputTokens[0].ToLower();
-	if (InputCommand == "help")
+	RawInput.ParseIntoArray(Prompt.ParsedPrompt, TEXT(" "),true);
+	
+	if (Prompt.ParsedPrompt.IsEmpty()) 
 	{
-		return HelpCommandFormer();
+		return "";
 	}
-	if (InputCommand == "ls")
+	
+	FString InputCommand = Prompt.ParsedPrompt[0].ToLower();
+	
+	if (!Commands.Contains(InputCommand))
 	{
-		return LsCommandFormer();
+		return FString::Printf(TEXT("bash: %s: command not found"), *InputCommand);
 	}
-	if (InputCommand == "cat")
-	{
-		return CatCommandFormer(InputTokens);
-	}
+	
+	if (const auto* CommandFunc = CommandRouters.Find(InputCommand)) 
+		return (*CommandFunc)(Prompt);
+	
 	//rest of the commands
-	return FString::Printf(TEXT("bash: %s: command not found"), *InputCommand);
+	return FString::Printf(TEXT("bash: %s: logic not implemented yet"), *InputCommand);
 }
 
 
-FString ATerminalActor::HelpCommandFormer() const
+FString ATerminalActor::HelpCommandFormer(const FTerminalCommandContext& Prompt) const
 {
 	FString Output = "Available Commands:\n\n"; // Two \n for a nice top margin
     
@@ -145,7 +156,7 @@ FString ATerminalActor::HelpCommandTextWrapper(const int LongestLeftLength, cons
 	return Output;
 }
 
-FString ATerminalActor::LsCommandFormer() const
+FString ATerminalActor::LsCommandFormer(const FTerminalCommandContext& Prompt) const
 {
 	// 1. Collect all names and find the longest one
 	TArray<FString> DeviceNames;
@@ -194,12 +205,12 @@ FString ATerminalActor::LsCommandFormer() const
 	return Output;
 }
 
-FString ATerminalActor::CatCommandFormer(TArray<FString> InputTokens) const
+FString ATerminalActor::CatCommandFormer(const FTerminalCommandContext& Prompt) const
 {
-	if (InputTokens.Num() < 2) return "bash: cat: missing operand";
+	if (Prompt.ParsedPrompt.Num() < 2) return "bash: cat: missing operand";
 
 	FString ErrorMessage, FileName;
-	UTerminalDeviceComponent* TargetComp = GetTargetDevice(InputTokens[1], FileName, ErrorMessage);
+	UTerminalDeviceComponent* TargetComp = GetTargetDevice(Prompt.ParsedPrompt[1], FileName, ErrorMessage);
 	
 	if (!TargetComp) return ErrorMessage;
 
@@ -208,11 +219,13 @@ FString ATerminalActor::CatCommandFormer(TArray<FString> InputTokens) const
 		return *FileContent + "\n";
 	}
 
-	return FString::Printf(TEXT("bash: %s: No such file or directory"), *InputTokens[1]);
+	return FString::Printf(TEXT("bash: %s: No such file or directory"), *Prompt.ParsedPrompt[1]);
 }
 
-FString ATerminalActor::EchoCommandFormer(FString RawInput) const
+FString ATerminalActor::EchoCommandFormer(const FTerminalCommandContext& Prompt) const
 {
+	FString RawInput = Prompt.RawPrompt;
+	
 	if (RawInput.Len() <= 5) return "\n";
 	RawInput = RawInput.Mid(5);
 	
@@ -244,7 +257,6 @@ FString ATerminalActor::EchoCommandFormer(FString RawInput) const
 	
 	return RawInput;
 }
-
 
 
 
