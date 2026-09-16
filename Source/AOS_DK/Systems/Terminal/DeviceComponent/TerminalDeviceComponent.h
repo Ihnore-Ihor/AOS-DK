@@ -2,8 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "TerminalDeviceComponent.generated.h"
 #include "Enums.h"
+#include "TerminalDeviceComponent.generated.h"
 
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnProcessStateChangedDelegate, EProcessState, CurrentProcessState);

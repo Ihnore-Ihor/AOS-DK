@@ -5,6 +5,8 @@
 #include "Templates/Function.h"
 #include "TerminalActor.generated.h"
 
+class UTerminalDeviceComponent;
+
 USTRUCT(BlueprintType)
 struct FTerminalCommandContext
 {
@@ -31,7 +33,7 @@ public:
 	virtual void BeginPlay() override;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Terminal|Info")
-	FString DevicePath;
+	FString TerminalPath;
 	
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Terminal")
