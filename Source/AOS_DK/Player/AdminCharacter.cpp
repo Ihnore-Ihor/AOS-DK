@@ -13,16 +13,15 @@ AAdminCharacter::AAdminCharacter()
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 	
-	GetMesh()->bOwnerNoSee = true;
-	
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationYaw = true;
+	bUseControllerRotationRoll = false;
+    
 	FirstPersonMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
 	FirstPersonMesh->SetupAttachment(GetMesh());
-	FirstPersonMesh->bOnlyOwnerSee = true;
-	FirstPersonMesh->CastShadow = false;
-	
+    
 	CameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	CameraComponent->SetupAttachment(FirstPersonMesh, FName("head"));
-	CameraComponent->bUsePawnControlRotation = true;
 }
 
 // Called when the game starts or when spawned
@@ -103,11 +102,14 @@ void AAdminCharacter::Look(const FInputActionValue& Value)
 
 
 void AAdminCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-                                     UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep,
-                                     const FHitResult& SweepResult)
+									 UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep,
+									 const FHitResult& SweepResult)
 {
 	if (OtherActor && OtherActor != this)
 	{
+		// ДОДАНО: Перевірка, чи бачить капсула хоч щось
+		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Yellow, FString::Printf(TEXT("Overlap Begin з: %s"), *OtherActor->GetName()));
+       
 		OverlapBuffer.AddUnique(OtherActor);
 	}
 }
@@ -122,8 +124,12 @@ void AAdminCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AAc
 
 void AAdminCharacter::Interact()
 {
-	if (OverlapBuffer.IsEmpty()) return;
-	
+
+	if (OverlapBuffer.IsEmpty()) 
+	{
+		return;
+	}
+    
 	AActor* TargetActor = OverlapBuffer.Last();
 	if (TargetActor)
 	{
@@ -133,6 +139,10 @@ void AAdminCharacter::Interact()
 			{
 				IInteractable::Execute_Interact(TargetActor, PlayerController);
 			}
+		}
+		else
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("У предмета НЕМАЄ Інтерфейсу UInteractable!"));
 		}
 	}
 }
