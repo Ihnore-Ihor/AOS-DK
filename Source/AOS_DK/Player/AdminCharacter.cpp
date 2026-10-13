@@ -5,6 +5,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "PlayerController/AdminPlayerController.h"
 
 
 // Sets default values
@@ -22,6 +23,9 @@ AAdminCharacter::AAdminCharacter()
     
 	CameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	CameraComponent->SetupAttachment(FirstPersonMesh, FName("head"));
+	
+	//~ Input
+	CameraComponent->bUsePawnControlRotation = true; 
 }
 
 // Called when the game starts or when spawned
@@ -29,24 +33,10 @@ void AAdminCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
-	{
-		if (UEnhancedInputLocalPlayerSubsystem* InputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
-		{
-			if (DefaultMappingContext)
-			{
-				InputSubsystem->AddMappingContext(DefaultMappingContext, 0);
-			}
-			if (MouseLookMappingContext)
-			{
-				InputSubsystem->AddMappingContext(MouseLookMappingContext, 1);
-			}
-		}
-	}
-	
 	GetCapsuleComponent()->OnComponentBeginOverlap.AddDynamic(this, &AAdminCharacter::OnOverlapBegin);
 	GetCapsuleComponent()->OnComponentEndOverlap.AddDynamic(this, &AAdminCharacter::OnOverlapEnd);
 }
+
 
 // Called every frame
 void AAdminCharacter::Tick(float DeltaTime)
@@ -101,16 +91,19 @@ void AAdminCharacter::Look(const FInputActionValue& Value)
 }
 
 
-void AAdminCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-									 UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep,
-									 const FHitResult& SweepResult)
+void AAdminCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	if (OtherActor && OtherActor != this)
 	{
-		// ДОДАНО: Перевірка, чи бачить капсула хоч щось
-		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Yellow, FString::Printf(TEXT("Overlap Begin з: %s"), *OtherActor->GetName()));
-       
 		OverlapBuffer.AddUnique(OtherActor);
+
+		if (OtherActor->Implements<UInteractable>())
+		{
+			if (AAdminPlayerController* PC = Cast<AAdminPlayerController>(GetController()))
+			{
+				PC->ShowHint();
+			}
+		}
 	}
 }
 
@@ -119,30 +112,30 @@ void AAdminCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AAc
 	if (OtherActor)
 	{
 		OverlapBuffer.Remove(OtherActor);
+
+		if (OtherActor->Implements<UInteractable>())
+		{
+			if (AAdminPlayerController* PC = Cast<AAdminPlayerController>(GetController()))
+			{
+				PC->HideHint();
+			}
+		}
 	}
 }
 
 void AAdminCharacter::Interact()
 {
-
 	if (OverlapBuffer.IsEmpty()) 
 	{
 		return;
 	}
-    
+
 	AActor* TargetActor = OverlapBuffer.Last();
 	if (TargetActor)
 	{
 		if (TargetActor->Implements<UInteractable>())
 		{
-			if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
-			{
-				IInteractable::Execute_Interact(TargetActor, PlayerController);
-			}
-		}
-		else
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("У предмета НЕМАЄ Інтерфейсу UInteractable!"));
+			IInteractable::Execute_Interact(TargetActor, this);
 		}
 	}
 }
