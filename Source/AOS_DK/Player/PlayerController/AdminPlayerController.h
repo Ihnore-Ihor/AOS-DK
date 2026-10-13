@@ -38,12 +38,13 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOS_DK|UI")
 	TSubclassOf<UUserWidget> HintWidgetClass;
 	
+	UPROPERTY(BlueprintReadOnly, Category = "AOS_DK|UI")
+	TObjectPtr<UUserWidget> CachedHintWidget;
+	
 	UFUNCTION(BlueprintImplementableEvent, Category = "AOS_DK|UI")
 	void OnHintStateChanged(bool bShow);
 
 private:
-	UPROPERTY()
-	TObjectPtr<UUserWidget> CachedHintWidget;
-
+	
 	void TogglePause();
 };
