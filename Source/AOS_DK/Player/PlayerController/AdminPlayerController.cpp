@@ -56,6 +56,16 @@ void AAdminPlayerController::TogglePause()
 
 void AAdminPlayerController::ShowHint()
 {
+	if (!CachedHintWidget && HintWidgetClass)
+	{
+		CachedHintWidget = CreateWidget<UUserWidget>(this, HintWidgetClass);
+		if (CachedHintWidget)
+		{
+			CachedHintWidget->AddToViewport();
+			CachedHintWidget->SetVisibility(ESlateVisibility::Hidden);
+		}
+	}
+
 	OnHintStateChanged(true);
 }
 
