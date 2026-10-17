@@ -10,6 +10,7 @@ class UStaticMeshComponent;
 class UCameraComponent;
 class UBuoyancyComponent;
 class UInputAction;
+class UInputMappingContext;
 struct FInputActionValue;
 
 UCLASS()
@@ -49,6 +50,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "AOS_DK|Input")
 	TObjectPtr<UInputAction> InteractAction;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "AOS_DK|Input")
+	TObjectPtr<UInputMappingContext> SubMappingContext;
 
 	//~ Physics
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics")

@@ -4,6 +4,8 @@
 #include "Camera/CameraComponent.h"
 #include "BuoyancyComponent.h"
 #include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "InputMappingContext.h"
 #include "AOS_DK/Player/AdminCharacter.h"
 #include "AOS_DK/Player/PlayerController/AdminPlayerController.h"
 
@@ -49,6 +51,17 @@ void AShellPawn::Tick(float DeltaTime)
 void AShellPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+		{
+			if (SubMappingContext)
+			{
+				Subsystem->AddMappingContext(SubMappingContext, 1); 
+			}
+		}
+	}
 
 	if (UEnhancedInputComponent* EnhancedInputComp = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
