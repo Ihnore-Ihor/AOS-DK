@@ -50,4 +50,14 @@ private:
 	TObjectPtr<AActor> CurrentInteractable;
 	
 	FTimerHandle InteractTimerHandle;
+	
+public:
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void SetInteractLocked(bool bLocked);
+
+	bool IsInteractLocked() const { return bInteractLocked; }
+
+private:
+	UPROPERTY(VisibleInstanceOnly, Category = "Interaction")
+	bool bInteractLocked = false;
 };

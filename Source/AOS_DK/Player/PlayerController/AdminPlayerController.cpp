@@ -68,6 +68,11 @@ void AAdminPlayerController::HideHint()
 
 void AAdminPlayerController::CheckInteractable()
 {
+	if (bInteractLocked)
+	{
+		return;
+	}
+
 	APawn* ControlledPawn = GetPawn();
 	if (!ControlledPawn || !PlayerCameraManager)
 	{
@@ -132,5 +137,15 @@ void AAdminPlayerController::TryInteract()
 	if (CurrentInteractable && GetPawn())
 	{
 		IInteractable::Execute_Interact(CurrentInteractable, GetPawn());
+	}
+}
+
+void AAdminPlayerController::SetInteractLocked(bool bLocked)
+{
+	bInteractLocked = bLocked;
+
+	if (bInteractLocked)
+	{
+		SetCurrentInteractable(nullptr);
 	}
 }
