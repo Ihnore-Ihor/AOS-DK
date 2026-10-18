@@ -19,8 +19,8 @@ AShellPawn::AShellPawn()
 	BoxRoot = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxRoot"));
 	RootComponent = BoxRoot;
 	BoxRoot->SetSimulatePhysics(true);
-	BoxRoot->SetLinearDamping(5.f);
-	BoxRoot->SetAngularDamping(8.f);
+	// BoxRoot->SetLinearDamping(5.f);
+	// BoxRoot->SetAngularDamping(8.f);
 	BoxRoot->SetCollisionProfileName(TEXT("PhysicsActor"));
 
 	ShellMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ShellMesh"));
@@ -37,9 +37,6 @@ AShellPawn::AShellPawn()
 void AShellPawn::BeginPlay()
 {
 	Super::BeginPlay();
-
-	BoxRoot->OnComponentBeginOverlap.AddDynamic(this, &AShellPawn::OnOverlapBegin);
-	BoxRoot->OnComponentEndOverlap.AddDynamic(this, &AShellPawn::OnOverlapEnd);
 }
 
 void AShellPawn::Tick(float DeltaTime)
@@ -52,22 +49,47 @@ void AShellPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	if (APlayerController* PC = Cast<APlayerController>(GetController()))
-	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
-		{
-			if (SubMappingContext)
-			{
-				Subsystem->AddMappingContext(SubMappingContext, 1); 
-			}
-		}
-	}
-
 	if (UEnhancedInputComponent* EnhancedInputComp = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
 		EnhancedInputComp->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AShellPawn::ApplyThrust);
 		EnhancedInputComp->BindAction(RotateAction, ETriggerEvent::Triggered, this, &AShellPawn::ApplyRotation);
 		EnhancedInputComp->BindAction(InteractAction, ETriggerEvent::Started, this, &AShellPawn::HandleInteract);
+	}
+}
+
+void AShellPawn::NotifyControllerChanged()
+{
+	Super::NotifyControllerChanged();
+
+	if (APlayerController* OldPC = Cast<APlayerController>(CachedController))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(OldPC->GetLocalPlayer()))
+		{
+			if (SubMappingContext) Subsystem->RemoveMappingContext(SubMappingContext);
+		}
+	}
+
+	CachedController = GetController();
+
+	if (APlayerController* NewPC = Cast<APlayerController>(CachedController))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(NewPC->GetLocalPlayer()))
+		{
+			if (SubMappingContext) Subsystem->AddMappingContext(SubMappingContext, 0); 
+		}
+	}
+}
+
+void AShellPawn::PawnClientRestart()
+{
+	Super::PawnClientRestart();
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+		{
+			if (SubMappingContext) Subsystem->AddMappingContext(SubMappingContext, 0); 
+		}
 	}
 }
 
@@ -89,46 +111,12 @@ void AShellPawn::Interact_Implementation(AActor* InstigatorActor)
 
 void AShellPawn::HandleInteract()
 {
-	if (OverlapBuffer.IsEmpty()) return;
-
-	AActor* TargetActor = OverlapBuffer.Last();
-	if (TargetActor && TargetActor->Implements<UInteractable>())
+	if (AAdminPlayerController* PC = Cast<AAdminPlayerController>(GetController()))
 	{
-		IInteractable::Execute_Interact(TargetActor, this);
+		PC->TryInteract();
 	}
 }
 
-void AShellPawn::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-{
-	if (OtherActor && OtherActor != this)
-	{
-		OverlapBuffer.AddUnique(OtherActor);
-
-		if (OtherActor->Implements<UInteractable>())
-		{
-			if (AAdminPlayerController* PC = Cast<AAdminPlayerController>(GetController()))
-			{
-				PC->ShowHint();
-			}
-		}
-	}
-}
-
-void AShellPawn::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
-{
-	if (OtherActor)
-	{
-		OverlapBuffer.Remove(OtherActor);
-
-		if (OtherActor->Implements<UInteractable>())
-		{
-			if (AAdminPlayerController* PC = Cast<AAdminPlayerController>(GetController()))
-			{
-				PC->HideHint();
-			}
-		}
-	}
-}
 
 //~ Movement
 void AShellPawn::ApplyThrust(const FInputActionValue& Value)

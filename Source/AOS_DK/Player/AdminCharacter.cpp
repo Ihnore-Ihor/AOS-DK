@@ -32,9 +32,6 @@ AAdminCharacter::AAdminCharacter()
 void AAdminCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
-	GetCapsuleComponent()->OnComponentBeginOverlap.AddDynamic(this, &AAdminCharacter::OnOverlapBegin);
-	GetCapsuleComponent()->OnComponentEndOverlap.AddDynamic(this, &AAdminCharacter::OnOverlapEnd);
 }
 
 
@@ -57,7 +54,46 @@ void AAdminCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AAdminCharacter::Interact);
 	}
-	
+}
+
+void AAdminCharacter::NotifyControllerChanged()
+{
+	Super::NotifyControllerChanged();
+
+	if (APlayerController* OldPC = Cast<APlayerController>(CachedController))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(OldPC->GetLocalPlayer()))
+		{
+			if (DefaultMappingContext) Subsystem->RemoveMappingContext(DefaultMappingContext);
+			if (MouseLookMappingContext) Subsystem->RemoveMappingContext(MouseLookMappingContext);
+		}
+	}
+
+	CachedController = GetController();
+
+	if (APlayerController* NewPC = Cast<APlayerController>(CachedController))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(NewPC->GetLocalPlayer()))
+		{
+			if (DefaultMappingContext) Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			if (MouseLookMappingContext) Subsystem->AddMappingContext(MouseLookMappingContext, 1);
+		}
+	}
+}
+
+void AAdminCharacter::PawnClientRestart()
+{
+	Super::PawnClientRestart();
+
+	//~ Гарантоване підключення інпутів на старті рівня
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+		{
+			if (DefaultMappingContext) Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			if (MouseLookMappingContext) Subsystem->AddMappingContext(MouseLookMappingContext, 1);
+		}
+	}
 }
 
 void AAdminCharacter::Move(const FInputActionValue& Value)
@@ -91,51 +127,10 @@ void AAdminCharacter::Look(const FInputActionValue& Value)
 }
 
 
-void AAdminCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-{
-	if (OtherActor && OtherActor != this)
-	{
-		OverlapBuffer.AddUnique(OtherActor);
-
-		if (OtherActor->Implements<UInteractable>())
-		{
-			if (AAdminPlayerController* PC = Cast<AAdminPlayerController>(GetController()))
-			{
-				PC->ShowHint();
-			}
-		}
-	}
-}
-
-void AAdminCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex)
-{
-	if (OtherActor)
-	{
-		OverlapBuffer.Remove(OtherActor);
-
-		if (OtherActor->Implements<UInteractable>())
-		{
-			if (AAdminPlayerController* PC = Cast<AAdminPlayerController>(GetController()))
-			{
-				PC->HideHint();
-			}
-		}
-	}
-}
-
 void AAdminCharacter::Interact()
 {
-	if (OverlapBuffer.IsEmpty()) 
+	if (AAdminPlayerController* PC = Cast<AAdminPlayerController>(GetController()))
 	{
-		return;
-	}
-
-	AActor* TargetActor = OverlapBuffer.Last();
-	if (TargetActor)
-	{
-		if (TargetActor->Implements<UInteractable>())
-		{
-			IInteractable::Execute_Interact(TargetActor, this);
-		}
+		PC->TryInteract();
 	}
 }

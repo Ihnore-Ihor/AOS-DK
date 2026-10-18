@@ -22,11 +22,14 @@ public:
 	AShellPawn();
 
 	virtual void Tick(float DeltaTime) override;
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void BeginPlay() override;
 	virtual void Interact_Implementation(AActor* InstigatorActor) override;
+	
+	virtual void NotifyControllerChanged() override; 
+	virtual void PawnClientRestart() override;
 
 protected:
-	virtual void BeginPlay() override;
+
 
 	//~ Components
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -53,6 +56,10 @@ protected:
 	
 	UPROPERTY(EditDefaultsOnly, Category = "AOS_DK|Input")
 	TObjectPtr<UInputMappingContext> SubMappingContext;
+	
+	
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
 
 	//~ Physics
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics")
@@ -61,15 +68,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics")
 	float TorqueMultiplier = 500.f;
 
-	//~ Interaction
-	UPROPERTY()
-	TArray<AActor*> OverlapBuffer;
 
-	UFUNCTION()
-	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
-
-	UFUNCTION()
-	void OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 private:
 	void ApplyThrust(const FInputActionValue& Value);
@@ -78,4 +77,7 @@ private:
 	void UpdateGyrostabilization(float DeltaTime);
 
 	float TimeSinceLastInput = 0.f;
+	
+	UPROPERTY()
+	TObjectPtr<AController> CachedController;
 };

@@ -1,28 +1,20 @@
 ﻿#include "AdminPlayerController.h"
-#include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
+#include "AOS_DK/Core/Interfaces/Interactions/Interactable.h"
 
 AAdminPlayerController::AAdminPlayerController()
 {
+	PrimaryActorTick.bCanEverTick = true; 
 }
+
 
 void AAdminPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
-	{
-		if (DefaultMappingContext)
-		{
-			Subsystem->AddMappingContext(DefaultMappingContext, 0);
-		}
-		if (MouseLookMappingContext)
-		{
-			Subsystem->AddMappingContext(MouseLookMappingContext, 1);
-		}
-	}
+	GetWorld()->GetTimerManager().SetTimer(InteractTimerHandle, this, &AAdminPlayerController::CheckInteractable, 0.1f, true);
 }
 
 void AAdminPlayerController::SetupInputComponent()
@@ -72,4 +64,73 @@ void AAdminPlayerController::ShowHint()
 void AAdminPlayerController::HideHint()
 {
 	OnHintStateChanged(false);
+}
+
+void AAdminPlayerController::CheckInteractable()
+{
+	APawn* ControlledPawn = GetPawn();
+	if (!ControlledPawn || !PlayerCameraManager)
+	{
+		SetCurrentInteractable(nullptr);
+		return;
+	}
+
+	AActor* BestInteractable = nullptr;
+
+	FVector StartLoc = PlayerCameraManager->GetCameraLocation();
+	FVector EndLoc = StartLoc + (PlayerCameraManager->GetActorForwardVector() * 500.f);
+
+	FHitResult HitResult;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(ControlledPawn);
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, StartLoc, EndLoc, ECC_Visibility, Params))
+	{
+		if (HitResult.GetActor() && HitResult.GetActor()->Implements<UInteractable>())
+		{
+			BestInteractable = HitResult.GetActor();
+		}
+	}
+
+	if (!BestInteractable)
+	{
+		TArray<AActor*> OverlappingActors;
+		ControlledPawn->GetOverlappingActors(OverlappingActors);
+		
+		for (AActor* Actor : OverlappingActors)
+		{
+			if (Actor && Actor->Implements<UInteractable>() && Actor != ControlledPawn)
+			{
+				BestInteractable = Actor;
+				break;
+			}
+		}
+	}
+
+	SetCurrentInteractable(BestInteractable);
+}
+
+void AAdminPlayerController::SetCurrentInteractable(AActor* NewInteractable)
+{
+	if (CurrentInteractable != NewInteractable)
+	{
+		CurrentInteractable = NewInteractable;
+		
+		if (CurrentInteractable)
+		{
+			ShowHint();
+		}
+		else
+		{
+			HideHint();
+		}
+	}
+}
+
+void AAdminPlayerController::TryInteract()
+{
+	if (CurrentInteractable && GetPawn())
+	{
+		IInteractable::Execute_Interact(CurrentInteractable, GetPawn());
+	}
 }

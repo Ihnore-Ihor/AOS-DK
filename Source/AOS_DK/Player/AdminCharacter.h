@@ -45,30 +45,28 @@ protected:
 	class UCameraComponent* CameraComponent;
 	
 
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
+
 
 public:
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void NotifyControllerChanged() override;
+	virtual void PawnClientRestart() override;
 	
+private:
+	UPROPERTY()
+	TObjectPtr<AController> CachedController;
 	
-	 // dock interaction
 protected:
-	UPROPERTY(BlueprintReadWrite, Category = "Interaction")
-	TArray<AActor*> OverlapBuffer;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* InteractAction;
 	
 	void Interact();
 	
-	UFUNCTION()
-	void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
-	
-	UFUNCTION()
-	void OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex);
 };

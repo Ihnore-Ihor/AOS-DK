@@ -4,13 +4,14 @@
 #include "AOS_DK/Submarine/ShellPawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/World.h"
 #include "TimerManager.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 AShellDock::AShellDock()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	//~ Initialization
 	DefaultRoot = CreateDefaultSubobject<USceneComponent>(TEXT("DefaultRoot"));
 	RootComponent = DefaultRoot;
 
@@ -34,22 +35,25 @@ void AShellDock::BeginPlay()
 	}
 }
 
-
 void AShellDock::Interact_Implementation(AActor* InstigatorActor)
 {
-	//~ Boarding
 	if (AAdminCharacter* Admin = Cast<AAdminCharacter>(InstigatorActor))
 	{
 		if (LinkedSubmarine)
 		{
 			if (APlayerController* PC = Cast<APlayerController>(Admin->GetController()))
 			{
+				Admin->GetCharacterMovement()->SetMovementMode(MOVE_None);
 				PC->SetViewTargetWithBlend(LinkedSubmarine, 1.0f);
 
 				FTimerHandle BlendTimer;
 				GetWorld()->GetTimerManager().SetTimer(BlendTimer, [PC, Admin, this]()
 				{
+					FRotator CamRot = PC->PlayerCameraManager->GetCameraRotation();
+					
 					PC->Possess(LinkedSubmarine);
+					PC->SetControlRotation(CamRot);
+					
 					Admin->AttachToComponent(LinkedSubmarine->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 					Admin->SetActorHiddenInGame(true);
 					Admin->SetActorEnableCollision(false);
@@ -57,7 +61,6 @@ void AShellDock::Interact_Implementation(AActor* InstigatorActor)
 			}
 		}
 	}
-	//~ Disembarking 
 	else if (AShellPawn* Shell = Cast<AShellPawn>(InstigatorActor))
 	{
 		if (APlayerController* PC = Cast<APlayerController>(Shell->GetController()))
@@ -70,16 +73,22 @@ void AShellDock::Interact_Implementation(AActor* InstigatorActor)
 				if (AAdminCharacter* AdminToUnpack = Cast<AAdminCharacter>(Attached))
 				{
 					AdminToUnpack->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-					AdminToUnpack->SetActorLocationAndRotation(DisembarkPoint->GetComponentLocation(), DisembarkPoint->GetComponentRotation());
+					AdminToUnpack->SetActorLocationAndRotation(DisembarkPoint->GetComponentLocation(), DisembarkPoint->GetComponentRotation(), false, nullptr, ETeleportType::TeleportPhysics);
 					AdminToUnpack->SetActorHiddenInGame(false);
 					AdminToUnpack->SetActorEnableCollision(true);
+					AdminToUnpack->GetCharacterMovement()->SetMovementMode(MOVE_None);
 
 					PC->SetViewTargetWithBlend(AdminToUnpack, 1.0f);
 
 					FTimerHandle BlendTimer;
 					GetWorld()->GetTimerManager().SetTimer(BlendTimer, [PC, AdminToUnpack]()
 					{
+						FRotator CamRot = PC->PlayerCameraManager->GetCameraRotation();
+						
 						PC->Possess(AdminToUnpack);
+						PC->SetControlRotation(CamRot);
+						
+						AdminToUnpack->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 					}, 1.0f, false);
 
 					break;

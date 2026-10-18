@@ -15,6 +15,8 @@ class AOS_DK_API AAdminPlayerController : public APlayerController
 
 public:
 	AAdminPlayerController();
+	
+	void TryInteract();
 
 	UFUNCTION(BlueprintCallable, Category = "AOS_DK|UI")
 	void ShowHint();
@@ -25,12 +27,6 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOS_DK|Input")
-	TObjectPtr<UInputMappingContext> DefaultMappingContext;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOS_DK|Input")
-	TObjectPtr<UInputMappingContext> MouseLookMappingContext;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOS_DK|Input")
 	TObjectPtr<UInputAction> PauseAction;
@@ -47,4 +43,11 @@ protected:
 private:
 	
 	void TogglePause();
+	void CheckInteractable();
+	void SetCurrentInteractable(AActor* NewInteractable);
+
+	UPROPERTY()
+	TObjectPtr<AActor> CurrentInteractable;
+	
+	FTimerHandle InteractTimerHandle;
 };
