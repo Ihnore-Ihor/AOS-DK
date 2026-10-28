@@ -239,15 +239,26 @@ void AShellPawn::UpdateHydrodynamics(float DeltaTime)
 	FVector FluidVelocity = FVector::ZeroVector;
 	FVector TargetNormal = FVector::UpVector;
 	
-	// Evaluates absolute fluid velocity at the current depth (exponentially decays to 0 underwater)
+	// Evaluates absolute fluid velocity at the current depth
 	EvaluateWaveKinematics(SubLocation, GetWorld()->GetTimeSeconds(), LocalWaveZ, FluidVelocity, TargetNormal);
 
 	bool bInWater = (SubLocation.Z <= LocalWaveZ);
-	BoxRoot->SetEnableGravity(!bInWater);
 
 	if (bInWater)
 	{
-		// Morison Equation: The wave's physical movement pushes the submarine
+		// Disable native engine gravity to handle buoyancy and penetration manually
+		BoxRoot->SetEnableGravity(false);
+
+		// Archimedes volume penetration: Gravity smoothly transitions to 0 as the hull sinks (first 150 cm)
+		float SubmergedDepth = LocalWaveZ - SubLocation.Z;
+		float EntryGravityFraction = FMath::Clamp(1.0f - (SubmergedDepth / 150.0f), 0.0f, 1.0f);
+		if (EntryGravityFraction > 0.01f)
+		{
+			// Pull down with residual gravity during surface piercing to create a heavy physical splash
+			BoxRoot->AddForce(FVector(0.f, 0.f, -980.0f * EntryGravityFraction), NAME_None, true);
+		}
+
+		// Morison Equation: Hydrodynamic drag opposing relative velocity
 		FVector RelativeVelocity = CurrentVelocity - FluidVelocity;
 		float RelSpeed = RelativeVelocity.Size();
 		float DragCoeff = LinearDrag + (QuadraticDrag * RelSpeed);
@@ -265,7 +276,7 @@ void AShellPawn::UpdateHydrodynamics(float DeltaTime)
 
 		if (!bHasDriver)
 		{
-			// EMPTY BOAT MODE: Uses Archimedes spring to stay afloat like a balloon
+			// EMPTY BOAT MODE: Uses Archimedes spring to stay afloat at the dock
 			if (SubLocation.Z > LocalWaveZ - 500.0f)
 			{
 				float TargetZ = LocalWaveZ - 25.0f; 
@@ -275,30 +286,18 @@ void AShellPawn::UpdateHydrodynamics(float DeltaTime)
 			}
 			else
 			{
+				// Deep underwater parking brake
 				BoxRoot->AddForce(FVector(0.f, 0.f, -CurrentVelocity.Z * 4.0f), NAME_None, true);
 			}
 
+			// Automatically align empty boat with waves
 			FVector SubUp = BoxRoot->GetUpVector();
 			FVector RestoringTorqueAxis = FVector::CrossProduct(SubUp, TargetNormal);
 			BoxRoot->AddTorqueInRadians(RestoringTorqueAxis * RestoringStiffness, NAME_None, true);
 		}
 		else
 		{
-			// MANNED 6DOF MODE: Pure Neutral Buoyancy. NO surface-seeking mechanics.
-			
-			// Zero out passenger buoyancy influence
-			TArray<AActor*> AttachedActors;
-			GetAttachedActors(AttachedActors);
-			for (AActor* Attached : AttachedActors)
-			{
-				if (ACharacter* AttachedChar = Cast<ACharacter>(Attached))
-				{
-					if (UCharacterMovementComponent* CMC = AttachedChar->GetCharacterMovement())
-					{
-						CMC->Buoyancy = 0.0f;
-					}
-				}
-			}
+			// MANNED 6DOF MODE: Pure Neutral Buoyancy underwater
 
 			// Apply vertical engines only
 			CurrentBallastForce = FMath::FInterpTo(CurrentBallastForce, TargetBallastForce, DeltaTime, BallastChangeSpeed);
@@ -312,13 +311,14 @@ void AShellPawn::UpdateHydrodynamics(float DeltaTime)
 				BoxRoot->AddForce(LocalAccel, NAME_None, true);
 			}
 
-			// Player-controlled Gyrostabilizer
+			// Manual Gyrostabilizer (Only active when key is pressed)
 			if (bIsStabilizing)
 			{
 				FVector SubUp = BoxRoot->GetUpVector();
 				FVector RestoringTorqueAxis = FVector::CrossProduct(SubUp, FVector::UpVector);
 				BoxRoot->AddTorqueInRadians(RestoringTorqueAxis * (RestoringStiffness * 3.0f), NAME_None, true);
 
+				// Auto-disable when horizon alignment is reached
 				if (FVector::DotProduct(SubUp, FVector::UpVector) > 0.995f && AngularVel.Size() < 0.1f)
 				{
 					bIsStabilizing = false;
@@ -328,7 +328,8 @@ void AShellPawn::UpdateHydrodynamics(float DeltaTime)
 	}
 	else
 	{
-		// Air State
+		// AIR STATE: Full engine gravity, propulsion disabled
+		BoxRoot->SetEnableGravity(true);
 		CurrentThrustScalar = 0.f;
 		TargetThrustScalar = 0.f;
 		CurrentBallastForce = 0.f;

@@ -69,7 +69,7 @@ protected:
 
 	//~ Environment
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics|Water")
-	float OceanSurfaceZ = 40.f;
+	float OceanSurfaceZ = 0.f;
 
 	//~ Propulsion Configuration
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics|Thrust")
