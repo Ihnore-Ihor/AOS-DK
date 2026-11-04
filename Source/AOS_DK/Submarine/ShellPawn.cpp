@@ -2,11 +2,13 @@
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Camera/CameraComponent.h"
+#include "AOS_DK/Submarine/Subdrones/Core/SubDroneBayComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "AOS_DK/Player/AdminCharacter.h"
 #include "AOS_DK/Player/PlayerController/AdminPlayerController.h"
 #include "Engine/Engine.h"
+#include "Engine/LocalPlayer.h"
 #include "GameFramework/PhysicsVolume.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
@@ -43,6 +45,8 @@ AShellPawn::AShellPawn()
 	FPCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FPCamera"));
 	FPCamera->SetupAttachment(BoxRoot);
 	FPCamera->bUsePawnControlRotation = false;
+
+	DroneBay = CreateDefaultSubobject<USubDroneBayComponent>(TEXT("DroneBay"));
 }
 
 void AShellPawn::BeginPlay()
@@ -121,6 +125,11 @@ void AShellPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 		if (StabilizeAction)
 		{
 			EnhancedInputComp->BindAction(StabilizeAction, ETriggerEvent::Started, this, &AShellPawn::TriggerStabilization);
+		}
+
+		if (DroneBay)
+		{
+			DroneBay->BindInput(EnhancedInputComp);
 		}
 	}
 }

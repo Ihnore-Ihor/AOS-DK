@@ -87,3 +87,13 @@ Builds/
 
 .DS_Store
 Thumbs.db
+
+#claude
+.claude/*
+CLAUDE.md
+
+# AOS_DK editor-only authoring helpers (procedural Niagara/material scripting) - kept local
+Source/AOS_DK/Core/Tools/
+
+# Python bytecode
+__pycache__/

@@ -8,6 +8,7 @@
 class UBoxComponent;
 class UStaticMeshComponent;
 class UCameraComponent;
+class USubDroneBayComponent;
 class UInputAction;
 class UInputMappingContext;
 struct FInputActionValue;
@@ -38,6 +39,9 @@ public:
 	virtual void NotifyControllerChanged() override;
 	virtual void Interact_Implementation(AActor* InstigatorActor) override;
 
+	float GetOceanSurfaceZ() const { return OceanSurfaceZ; }
+	USubDroneBayComponent* GetDroneBay() const { return DroneBay; }
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UBoxComponent> BoxRoot;
@@ -47,6 +51,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UCameraComponent> FPCamera;
+
+	/** Dual-Core drone bay: spawns module drones, routes IA_Sub_DroneToggle / IA_Sub_DroneAttack. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<USubDroneBayComponent> DroneBay;
 
 	//~ Inputs
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOS_DK|Input")
