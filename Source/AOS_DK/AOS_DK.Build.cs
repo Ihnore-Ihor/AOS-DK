@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 using UnrealBuildTool;
 
@@ -8,17 +8,17 @@ public class AOS_DK : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "Water", "Niagara" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "Water", "Niagara", "ProceduralMeshComponent" });
 
 		//PrivateDependencyModuleNames.AddRange(new string[] {  });
 
 		// Uncomment if you are using Slate UI
 		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 
-		// Editor-only: procedural Niagara authoring helpers (Core/Tools/AOSDKFxAuthoringLibrary)
+		// Editor-only: procedural Niagara / UMG authoring helpers (Core/Tools/AOSDK*AuthoringLibrary)
 		if (Target.bBuildEditor)
 		{
-			PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd", "NiagaraEditor" });
+			PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd", "NiagaraEditor", "UMGEditor" });
 		}
 		
 		// Uncomment if you are using online features
