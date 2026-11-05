@@ -24,6 +24,10 @@ AShellDock::AShellDock()
 	DisembarkPoint = CreateDefaultSubobject<USceneComponent>(TEXT("DisembarkPoint"));
 	DisembarkPoint->SetupAttachment(RootComponent);
 	DisembarkPoint->SetRelativeLocation(FVector(0.f, 500.f, 100.f));
+
+	ParkingPoint = CreateDefaultSubobject<USceneComponent>(TEXT("ParkingPoint"));
+	ParkingPoint->SetupAttachment(RootComponent);
+	ParkingPoint->SetRelativeLocation(FVector(230.f, 220.f, -164.f));
 }
 
 void AShellDock::BeginPlay()
@@ -33,6 +37,68 @@ void AShellDock::BeginPlay()
 	if (!LinkedSubmarine)
 	{
 		LinkedSubmarine = Cast<AShellPawn>(UGameplayStatics::GetActorOfClass(GetWorld(), AShellPawn::StaticClass()));
+	}
+	if (LinkedSubmarine)
+	{
+		// The Shell starts the level moored at its berth: remember that pose for recoveries.
+		CapturedParking = LinkedSubmarine->GetActorTransform();
+		CapturedParking.SetScale3D(FVector::OneVector);
+		bHasCapturedParking = true;
+	}
+}
+
+FTransform AShellDock::GetParkingTransform() const
+{
+	if (bUseParkingPoint || !bHasCapturedParking)
+	{
+		return FTransform(ParkingPoint->GetComponentRotation(), ParkingPoint->GetComponentLocation());
+	}
+	return CapturedParking;
+}
+
+void AShellDock::RecoverShell(AShellPawn* Shell)
+{
+	if (!Shell)
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(Shell->GetController());
+
+	AAdminCharacter* Admin = nullptr;
+	TArray<AActor*> AttachedActors;
+	Shell->GetAttachedActors(AttachedActors);
+	for (AActor* Attached : AttachedActors)
+	{
+		Admin = Cast<AAdminCharacter>(Attached);
+		if (Admin)
+		{
+			break;
+		}
+	}
+
+	// 1) Pilot back on the surface dock, on foot.
+	if (Admin)
+	{
+		const FRotator Facing(0.f, DisembarkPoint->GetComponentRotation().Yaw, 0.f);
+		Admin->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		Admin->SetActorLocationAndRotation(DisembarkPoint->GetComponentLocation(), Facing, false, nullptr, ETeleportType::TeleportPhysics);
+		Admin->SetActorHiddenInGame(false);
+		Admin->SetActorEnableCollision(true);
+		if (PC)
+		{
+			PC->Possess(Admin);
+			PC->SetControlRotation(Facing);
+			PC->SetViewTarget(Admin);
+		}
+		Admin->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+	}
+
+	// 2) Shell back to its berth with the base charge.
+	Shell->FinishRecovery(GetParkingTransform());
+
+	if (AAdminPlayerController* AdminPC = Cast<AAdminPlayerController>(PC))
+	{
+		AdminPC->SetInteractLocked(false);
 	}
 }
 
