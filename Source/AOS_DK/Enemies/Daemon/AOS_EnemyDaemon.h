@@ -310,10 +310,10 @@ protected:
 	FLinearColor StrikeColor;
 
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Daemon|Look", meta = (ClampMin = "0"))
-	float IdleGlow = 22.f;
+	float IdleGlow = 3.f;
 
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Daemon|Look", meta = (ClampMin = "0"))
-	float ChargeGlowMax = 160.f;
+	float ChargeGlowMax = 8.f;
 
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Daemon|Look", meta = (ClampMin = "0"))
 	float CoreLightIntensity = 90.f;
