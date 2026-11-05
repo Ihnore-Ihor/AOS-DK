@@ -39,7 +39,10 @@ MI_WATER = WATER_DIR + "/MI_Water_Ocean_AOS"
 MI_UWPP = WATER_DIR + "/MI_UnderwaterPostProcess_AOS"          # the one assigned to WaterBodyOcean
 LF_MAT_NAME = "M_LF_OceanCaustics_AOS"
 LF_MI_NAME = "MI_LF_OceanCaustics_AOS"
-CAUSTIC_TEX = "/Water/Textures/Caustics/Caustics_Tiling_01_HDR"
+# Own 512^2 G8 caustic pattern (plugin HDR texture / 2, never streamed): the plugin's float texture is
+# streamed and light-function textures are not seen by the streamer, so it stayed at a 1x1 mip (flat value).
+CAUSTIC_TEX = WATER_DIR + "/T_Caustics_AOS"
+CAUSTIC_TEX_SOURCE = "Textures/T_Caustics_AOS.png"   # relative to this script
 CONTROLLER_CLASS = "/Script/AOS_DK.AOSOceanDepthController"
 
 # ----------------------------------------------------------------------------------------------
@@ -77,11 +80,11 @@ SURFACE_TRANSITION_CM = 50.0
 # ----------------------------------------------------------------------------------------------
 PP_ABS_M = (0.030, round(JII_KD_M[1] * 0.115, 4), round(JII_KD_M[2] * 0.115, 4))  # (0.030, 0.0092, 0.0075)
 PP_FOG_CM = 0.0002
-PP_FOG_AMBIENT = (0.01, 0.08, 0.18, 0.35)         # PDF fog colour; a=0.35 tuned by capture tests (a=1 washes markers)
+PP_FOG_AMBIENT = (0.01, 0.08, 0.18, 4.0)          # PDF fog colour; a scaled to the scene illuminance (0.35 left the water column black)
 PP_FOG_SCATTER = (0.05, 0.35, 0.65, 0.6)          # sun-phase in-scatter, 490-500 nm window
 PP_SCATTER_ANISO = JII_PHASE_G
 PP_WHITE_TEMP = 5000.0                             # PDF: 4500-5000 K (upper bound keeps markers warm)
-PP_EV100_MIN, PP_EV100_MAX = 0.0, 6.0             # exposure clamp -> abyss stays black
+PP_EV100_MIN, PP_EV100_MAX = -4.0, 6.0            # surface value; the depth controller raises the floor to 0 EV in the abyss
 
 # Exponential Height Fog (underwater medium); PDF: density 0.03-0.08, g 0.65-0.82, extinction 1.2-2.2
 FOG_DENSITY = 0.05
@@ -205,6 +208,29 @@ def _c(a, b, b_in="", a_out=""):
     mel.connect_material_expressions(a, a_out, b, b_in)
 
 
+def ensure_caustic_texture():
+    if eas.does_asset_exist(CAUSTIC_TEX):
+        tex = unreal.load_asset(CAUSTIC_TEX)
+    else:
+        import os
+        src = os.path.join(os.path.dirname(os.path.abspath(__file__)), CAUSTIC_TEX_SOURCE)
+        task = unreal.AssetImportTask()
+        task.set_editor_property("filename", src)
+        task.set_editor_property("destination_path", WATER_DIR)
+        task.set_editor_property("destination_name", CAUSTIC_TEX.split("/")[-1])
+        task.set_editor_property("automated", True)
+        task.set_editor_property("replace_existing", True)
+        task.set_editor_property("save", False)
+        unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
+        tex = unreal.load_asset(CAUSTIC_TEX)
+    tex.set_editor_property("srgb", False)
+    tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_GRAYSCALE)
+    tex.set_editor_property("never_stream", True)
+    tex.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_WORLD)
+    touched_assets.add(tex.get_path_name())
+    return tex
+
+
 def build_light_function(water_z):
     tools = unreal.AssetToolsHelpers.get_asset_tools()
     path = WATER_DIR + "/" + LF_MAT_NAME
@@ -233,8 +259,9 @@ def build_light_function(water_z):
     p_c0 = _scalar(mat, "CausticCutStart", CAUSTIC_CUT_START_CM, -2600, 500)
     p_c1 = _scalar(mat, "CausticCutEnd", CAUSTIC_CUT_END_CM, -2600, 600)
     p_str = _scalar(mat, "CausticStrength", 1.0, -2600, 700)
-    p_min = _scalar(mat, "CausticFloor", 0.25, -2600, 800)
-    p_gain = _scalar(mat, "CausticGain", 1.0, -2600, 900)
+    # pattern contrast ~3:1 (p90/p10); LF mean 0.545 is compensated on the sun by the depth controller
+    p_min = _scalar(mat, "CausticFloor", 0.2, -2600, 800)
+    p_gain = _scalar(mat, "CausticGain", 3.0, -2600, 900)    # texture stores pattern/2
 
     # --- depth below the waterline, cm
     wp = _expr(mat, E.MaterialExpressionWorldPosition, -2300, -300)
@@ -266,9 +293,24 @@ def build_light_function(water_z):
     _c(fd, fdn, "A")
     fexp = _expr(mat, E.MaterialExpressionExponential, -1100, 0)
     _c(fdn, fexp)
-    ss = _expr(mat, E.MaterialExpressionSmoothStep, -1500, 150)
-    _c(p_c0, ss, "Min"); _c(p_c1, ss, "Max"); _c(depth, ss, "Value")
-    ssi = _expr(mat, E.MaterialExpressionOneMinus, -1300, 150)
+    # explicit smoothstep: t = saturate((depth - c0) / (c1 - c0)); 1 - t*t*(3 - 2t)
+    ss_num = _expr(mat, E.MaterialExpressionSubtract, -1700, 150)
+    _c(depth, ss_num, "A"); _c(p_c0, ss_num, "B")
+    ss_den = _expr(mat, E.MaterialExpressionSubtract, -1700, 250)
+    _c(p_c1, ss_den, "A"); _c(p_c0, ss_den, "B")
+    ss_div = _expr(mat, E.MaterialExpressionDivide, -1550, 200)
+    _c(ss_num, ss_div, "A"); _c(ss_den, ss_div, "B")
+    ss_t = _expr(mat, E.MaterialExpressionSaturate, -1450, 200)
+    _c(ss_div, ss_t)
+    ss_k = _expr(mat, E.MaterialExpressionMultiply, -1350, 250, const_b=-2.0)
+    _c(ss_t, ss_k, "A")
+    ss_k3 = _expr(mat, E.MaterialExpressionAdd, -1250, 250, const_b=3.0)
+    _c(ss_k, ss_k3, "A")
+    ss_t2 = _expr(mat, E.MaterialExpressionMultiply, -1350, 150)
+    _c(ss_t, ss_t2, "A"); _c(ss_t, ss_t2, "B")
+    ss = _expr(mat, E.MaterialExpressionMultiply, -1150, 200)
+    _c(ss_t2, ss, "A"); _c(ss_k3, ss, "B")
+    ssi = _expr(mat, E.MaterialExpressionOneMinus, -1050, 150)
     _c(ss, ssi)
     f1 = _expr(mat, E.MaterialExpressionMultiply, -900, 50)
     _c(fexp, f1, "A"); _c(ssi, f1, "B")
@@ -287,11 +329,11 @@ def build_light_function(water_z):
     pan_b = _expr(mat, E.MaterialExpressionPanner, -1700, 500, speed_x=-0.017, speed_y=-0.024)
     _c(uv_b, pan_b, "Coordinate")
 
-    tex = unreal.load_asset(CAUSTIC_TEX)
+    tex = ensure_caustic_texture()
 
     def sample(coord_expr, x, y):
         s = _expr(mat, E.MaterialExpressionTextureSample, x, y, texture=tex,
-                  sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+                  sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_GRAYSCALE)
         _c(coord_expr, s, "UVs")
         return s
 
@@ -338,6 +380,7 @@ def build_light_function(water_z):
         mi = tools.create_asset(LF_MI_NAME, WATER_DIR, unreal.MaterialInstanceConstant,
                                 unreal.MaterialInstanceConstantFactoryNew())
     mel.set_material_instance_parent(mi, mat)
+    mel.clear_all_material_instance_parameters(mi)   # graph defaults are the source of truth
     mel.set_material_instance_scalar_parameter_value(mi, "WaterZ", water_z)
     mel.update_material_instance(mi)
     touched_assets.add(mi.get_path_name())
@@ -456,6 +499,9 @@ def setup_actors(lf_mi):
             ctrl.set_editor_property("pp_fog_scatter_intensity", PP_FOG_SCATTER[3])
             ctrl.set_editor_property("kd_par_per_meter", KPAR_M)
             ctrl.set_editor_property("sun_volumetric_scattering_underwater", SUN_VOL_SCATTER)
+            ctrl.set_editor_property("exposure_min_ev_surface", PP_EV100_MIN)
+            ctrl.set_editor_property("exposure_min_ev_deep", 0.0)
+            ctrl.set_editor_property("exposure_max_ev", PP_EV100_MAX)
 
 
 # ================================================================== main

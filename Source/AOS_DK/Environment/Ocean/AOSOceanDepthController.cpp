@@ -119,13 +119,14 @@ float AAOSOceanDepthController::GetWaterSurfaceZ(const FVector& At) const
 	{
 		if (const UWaterBodyComponent* Body = WaterBody->GetWaterBodyComponent())
 		{
-			// Gerstner-aware surface height (PDF: GetWaterSurfaceInfo -> z_wave).
-			FVector SurfaceLocation, SurfaceNormal, Velocity;
-			float WaterDepth = 0.f;
-			if (Body->GetWaterSurfaceInfoAtLocation(At, SurfaceLocation, SurfaceNormal, Velocity, WaterDepth, false))
-			{
-				return SurfaceLocation.Z;
-			}
+			// Wave-aware surface height (PDF: z_wave). GetWaterSurfaceInfoAtLocation() only returns the flat
+		// water plane, so the query must explicitly include the Gerstner waves.
+		const TValueOrError<FWaterBodyQueryResult, EWaterBodyQueryError> Query = Body->TryQueryWaterInfoClosestToWorldLocation(
+			At, EWaterBodyQueryFlags::ComputeLocation | EWaterBodyQueryFlags::IncludeWaves);
+		if (Query.HasValue())
+		{
+			return Query.GetValue().GetWaterSurfaceLocation().Z;
+		}
 		}
 		return WaterBody->GetActorLocation().Z;
 	}
@@ -202,7 +203,15 @@ void AAOSOceanDepthController::Apply(bool bUnderwater, float DepthM)
 	{
 		// Surfaces get exp(-Kd z) per pixel from the light function; here only the global cut-off,
 		// so Lumen does not bounce sunlight into the aphotic zone and VSM pages are freed.
-		SunLight->SetIntensity(BaseSunIntensity * Aphotic);
+		// Energy-conserving caustics: boost by 1 / mean(LF) where the caustic pattern is active.
+		float CausticCompensation = 1.f;
+		if (bUnderwater)
+		{
+			const float Fade = FMath::Exp(-DepthM / FMath::Max(CausticExtinctionDepthM, 0.1f))
+				* (1.f - FMath::SmoothStep(CausticCutStartM, CausticCutEndM, DepthM));
+			CausticCompensation = 1.f / FMath::Max(1.f - Fade * (1.f - CausticMeanTransmission), 0.05f);
+		}
+		SunLight->SetIntensity(BaseSunIntensity * Aphotic * CausticCompensation);
 		SunLight->SetVisibility(Aphotic > KINDA_SMALL_NUMBER);
 		SunLight->SetVolumetricScatteringIntensity(bUnderwater
 			? SunVolumetricScatteringUnderwater * SunFactor * Aphotic
@@ -219,8 +228,19 @@ void AAOSOceanDepthController::Apply(bool bUnderwater, float DepthM)
 
 	if (bUnderwater && WaterBody && WaterBody->GetWaterBodyComponent())
 	{
-		// Re-fetch: the water body recreates its MID when its materials are rebuilt.
-		UnderwaterMID = WaterBody->GetWaterBodyComponent()->GetUnderwaterPostProcessMaterialInstance();
+		UWaterBodyComponent* Body = WaterBody->GetWaterBodyComponent();
+
+		// Exposure floor follows the light field: daylight-compatible in the epipelagic, black in the abyss.
+		FPostProcessSettings& PP = Body->UnderwaterPostProcessSettings.PostProcessSettings;
+		PP.bOverride_AutoExposureMinBrightness = true;
+		PP.bOverride_AutoExposureMaxBrightness = true;
+		PP.AutoExposureMinBrightness = FMath::Lerp(ExposureMinEVSurface, ExposureMinEVDeep,
+			FMath::SmoothStep(EpipelagicBottomM, MesopelagicBottomM, DepthM));
+		PP.AutoExposureMaxBrightness = ExposureMaxEV;
+
+		// Re-fetch: the water body recreates its MID when its materials are rebuilt. This call also copies
+		// UnderwaterPostProcessSettings into the transient settings used by the renderer.
+		UnderwaterMID = Body->GetUnderwaterPostProcessMaterialInstance();
 		if (UnderwaterMID)
 		{
 			FLinearColor Ambient = PPAmbientColor;

@@ -35,6 +35,29 @@ float3 c = Cam + (frac((P0 + Drift * T - Cam) / Box) - 0.5) * Box;
 float ph = Seed.g * 6.2831853;
 c += float3(sin(T * 0.37 + ph), cos(T * 0.29 + ph * 1.7), sin(T * 0.23 + ph * 2.3)) * (3.0 * Seed.a);
 
+// Flakes are passive tracers of the swell: Gerstner orbital displacement decaying as e^(k z)
+// (same 16 waves and clock as the water mesh / Shell buoyancy). Local surface = WaveP.x + sum(A cos).
+float4 GA[16] = { GW0A, GW1A, GW2A, GW3A, GW4A, GW5A, GW6A, GW7A, GW8A, GW9A, GW10A, GW11A, GW12A, GW13A, GW14A, GW15A };
+float4 GB[16] = { GW0B, GW1B, GW2B, GW3B, GW4B, GW5B, GW6B, GW7B, GW8B, GW9B, GW10B, GW11B, GW12B, GW13B, GW14B, GW15B };
+float d0 = max(WaveP.x - c.z, 0.0);
+float3 orb = 0;
+float elev = 0;
+[unroll] for (int w = 0; w < 16; ++w)
+{
+    float th = dot(c.xy, GA[w].xy) - GA[w].z * WaveT;
+    float sn, cs;
+    sincos(th, sn, cs);
+    float dec = exp(-GB[w].w * d0);
+    orb.xy += -GB[w].z * sn * GB[w].xy * dec;
+    orb.z += GA[w].w * cs * dec;
+    elev += GA[w].w * cs;
+}
+c += orb;
+float below = (WaveP.x + elev) - c.z;                   // depth under the local wave surface, cm
+float keep = step(WaveP.y, below);                      // never in air / in the crest
+float dens = lerp(WaveP.z, 1.0, saturate(below / WaveP.w));
+keep *= step(frac(Seed.a * 7.31 + Seed.g * 3.17), dens); // thinner wave-mixed surface layer
+
 float3 toC = c - Cam;
 float dist = length(toC);
 float3 camR = normalize(mul(float3(1, 0, 0), (float3x3)ResolvedView.ViewToTranslatedWorld));
@@ -53,7 +76,7 @@ float3 B = normalize(cross(dirP, A));
 float size = lerp(SizeP.x, SizeP.y, Seed.r);
 size = max(size, dist * SizeP.z);                       // >= ~1 px, no sub-pixel shimmer
 float fade = smoothstep(FadeP.x * 0.5, FadeP.x, dist) * (1.0 - smoothstep(FadeP.y, Box * 0.5, dist));
-size *= step(0.01, fade);                               // collapse invisible quads -> no pixel cost
+size *= step(0.01, fade) * keep;                        // collapse invisible quads -> no pixel cost
 float len = size + min(sp * SizeP.w, 40.0);
 
 float2 q = UV * 2.0 - 1.0;
@@ -151,12 +174,16 @@ def build_material():
     kd = sp("Kd", KPAR_CM)
     gain = sp("Gain", 1500.0)
     rng = sp("LightRange", 5200.0)
+    wave_t = sp("WaveTime", 0.0)
+    wave_p = vp4("WaveP", (40.0, 20.0, 0.25, 2500.0))   # base Z, clearance, surface density, full-density depth
+    gwa = [vp4("GW%dA" % i, (0.0, 0.0, 0.0, 0.0)) for i in range(16)]   # waveVector.xy, omega, amplitude
+    gwb = [vp4("GW%dB" % i, (1.0, 0.0, 0.0, 0.0)) for i in range(16)]   # dir.xy, Q, k
     drift = vp3("Drift", (3.0, 1.5, -0.6, 0.0))
     cam_vel = vp3("CamVel", (0.0, 0.0, 0.0, 0.0))
-    size_p = vp4("SizeP", (0.5, 2.4, 0.0012, 0.04))     # min r, max r (cm), px-clamp, streak time (s)
+    size_p = vp4("SizeP", (0.5, 2.4, 0.0012, 0.02))     # min r, max r (cm), px-clamp, streak time (s)
     fade_p = vp3("FadeP", (40.0, 1400.0, 0.0, 0.0))      # near fade (cm), far fade start (cm)
     phase = vp3("Phase", (PHASE_TTHG[0], PHASE_TTHG[1], PHASE_TTHG[2], 0.0))
-    amb = vp3("Amb", (0.0003, 0.001, 0.0015, 0.0))
+    amb = vp3("Amb", (0.00002, 0.00008, 0.00012, 0.0))
     hl0p = vp4("HL0Pos", (0.0, 0.0, 0.0, 0.974))
     hl0d = vp4("HL0Dir", (1.0, 0.0, 0.0, 0.891))
     hl0c = vp3("HL0Color", (0.0, 0.0, 0.0, 0.0))
@@ -192,7 +219,9 @@ def build_material():
         return e
 
     vs_inputs = [("P0", p0), ("UV", uv), ("Seed", seed), ("Cam", cam), ("Base", base), ("T", time),
-                 ("Box", box), ("Drift", drift), ("CamVel", cam_vel), ("SizeP", size_p), ("FadeP", fade_p)]
+                 ("Box", box), ("Drift", drift), ("CamVel", cam_vel), ("SizeP", size_p), ("FadeP", fade_p),
+                 ("WaveT", wave_t), ("WaveP", wave_p)]
+    vs_inputs += [("GW%dA" % i, gwa[i]) for i in range(16)] + [("GW%dB" % i, gwb[i]) for i in range(16)]
     vs = custom(VS_CODE, unreal.CustomMaterialOutputType.CMOT_FLOAT3, [n for n, _ in vs_inputs], -700, -400)
     for n, src in vs_inputs:
         c(src, vs, n)
@@ -231,7 +260,10 @@ def place_actor(mat):
     actor.set_editor_property("particle_count", 20000)
     actor.set_editor_property("box_size", 4000.0)
     actor.set_editor_property("headlight_scale", 0.001)
-    actor.set_editor_property("sun_scale", 0.002)
+    actor.set_editor_property("sun_scale", 0.0005)
+    actor.set_editor_property("surface_density", 0.25)
+    actor.set_editor_property("full_density_depth", 2500.0)
+    actor.set_editor_property("surface_clearance", 20.0)
     for a in sub.get_all_level_actors():
         if isinstance(a, unreal.WaterBodyOcean):
             actor.set_editor_property("water_body", a)
