@@ -59,6 +59,16 @@ public:
 	virtual void StartPrimaryAction() {}
 	virtual void StopPrimaryAction() {}
 
+	// --- Manual reload (IA_Sub_DroneReload, routed and paid for by USubDroneBayComponent) ----------
+	/** Accepted = a reload can start right now; otherwise the reason. Default: nothing to reload. */
+	virtual ESubDroneReloadResult CanStartReload() const { return ESubDroneReloadResult::NotSupported; }
+
+	/** One-shot Shell energy cost of a manual reload, % of the core. */
+	virtual float GetReloadEnergyCost() const { return 0.f; }
+
+	/** Starts the reload. Called by the bay only after CanStartReload() == Accepted and the energy was paid. */
+	virtual void StartReload() {}
+
 	/**
 	 * Strict input filter for the primary action (LMB): only a drone that was explicitly sent to its
 	 * working position with R (MobilityState == Deployed) accepts it. In Formation / Docking / Docked the
@@ -85,6 +95,10 @@ public:
 	int32 GetSlotIndex() const { return SlotIndex; }
 	const FVector& GetKinematicVelocity() const { return Velocity; }
 
+	/** true while the drone is phasing through geometry to get unstuck. */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|SubDrone")
+	bool IsPhasing() const { return bPhasing; }
+
 	UPROPERTY(BlueprintAssignable, Category = "AOS_DK|SubDrone")
 	FOnSubDroneMobilityChanged OnMobilityChanged;
 
@@ -98,6 +112,14 @@ protected:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "AOS_DK|SubDrone", meta = (DisplayName = "On Mobility State Changed"))
 	void BP_OnMobilityStateChanged(ESubDroneMobilityState NewState, ESubDroneMobilityState OldState);
+
+	/** Unstuck hook (FX / sound): phasing through an obstacle started / ended. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "AOS_DK|SubDrone", meta = (DisplayName = "On Phase Shift"))
+	void BP_OnPhaseShift(bool bPhasingNow);
+
+	/** Unstuck hook: the drone was relocated next to the Shell (last-resort rescue). */
+	UFUNCTION(BlueprintImplementableEvent, Category = "AOS_DK|SubDrone", meta = (DisplayName = "On Rescue Teleport"))
+	void BP_OnRescueTeleport(const FVector& From, const FVector& To);
 
 	const FQuat& GetFilteredHostFrame() const { return FilteredHostFrame; }
 	float GetMobilityStateTime() const { return MobilityStateTime; }
@@ -152,6 +174,40 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Dock", meta = (Units = "CentimetersPerSecond"))
 	float UndockKickSpeed = 300.f;
 
+	// --- Unstuck --------------------------------------------------------------------------
+	/**
+	 * Keep the goal on the Shell's side of walls: a sphere trace Shell -> slot clips the slot at the
+	 * first obstacle, so a rock between the Shell and the slot never becomes a wall the drone presses into.
+	 */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Unstuck")
+	bool bClipGoalToShellVisibility = true;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Unstuck")
+	bool bEnableUnstuck = true;
+
+	/** Blocked and moving less than StuckProgressRatio of the intended step for this long -> phase. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Unstuck", meta = (ClampMin = "0.05", Units = "s"))
+	float StuckTimeToPhase = 0.5f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Unstuck", meta = (ClampMin = "0.01", ClampMax = "1"))
+	float StuckProgressRatio = 0.35f;
+
+	/** Closer than this to the goal is never "stuck". */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Unstuck", meta = (ClampMin = "0", Units = "cm"))
+	float StuckGoalTolerance = 90.f;
+
+	/** Far behind (no clear path) for this long -> phase, even without a blocking contact. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Unstuck", meta = (ClampMin = "0.1", Units = "s"))
+	float LostTimeToPhase = 1.5f;
+
+	/** Glide speed relative to the Shell while phasing through an obstacle. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Unstuck", meta = (ClampMin = "50", Units = "CentimetersPerSecond"))
+	float PhaseSpeed = 1500.f;
+
+	/** Still phasing after this long -> rescue teleport to a free point next to the Shell. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Unstuck", meta = (ClampMin = "0.1", Units = "s"))
+	float MaxPhaseTime = 2.5f;
+
 private:
 	void SetMobilityState(ESubDroneMobilityState NewState);
 	void UpdateHostFrame(float Dt, const FSubDroneMotionProfile& Profile);
@@ -162,6 +218,17 @@ private:
 	float GetCachedWaterSurfaceZ(const FVector& At, float Dt);
 	void AttachToDock();
 	void DetachFromDock();
+
+	// Unstuck helpers (same object type / responses as the movement sweep).
+	FCollisionQueryParams MakeUnstuckQueryParams() const;
+	bool IsBlockedAt(const FVector& Location) const;
+	bool SweepBlocked(const FVector& From, const FVector& To, FHitResult& OutHit) const;
+	FVector ClipGoalToShell(const FVector& Goal) const;
+	FVector FindRescuePoint(const FVector& PreferredGoal) const;
+	void SetPhasing(bool bNewPhasing);
+	void RescueTeleport(const FVector& PreferredGoal);
+	void UpdateStuckWatchdog(const FVector& OldPos, const FVector& IntendedPos, bool bBlocked, const FVector& Goal, float Dt);
+	void UpdatePhasing(const FVector& Goal, float Dt);
 
 	TWeakObjectPtr<USubDroneBayComponent> Bay;
 	TWeakObjectPtr<APawn> HostPawn;
@@ -183,4 +250,13 @@ private:
 
 	float BobTime = 0.f;
 	float BobSeed = 0.f;
+
+	// Unstuck state
+	bool bPhasing = false;
+	float StuckTime = 0.f;
+	float LostTime = 0.f;
+	float PhaseTime = 0.f;
+	float PhaseCheckTimer = 0.f;
+	float LostCheckTimer = 0.f;
+	bool bLastPathClear = true;
 };

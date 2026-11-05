@@ -3,6 +3,7 @@
 #include "AOS_DK/Submarine/Subdrones/Core/SubDroneBayComponent.h"
 #include "AOS_DK/Submarine/Subdrones/Core/SubDroneMath.h"
 #include "Components/SphereComponent.h"
+#include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 
 DEFINE_LOG_CATEGORY(LogSubDrone);
@@ -165,6 +166,7 @@ void ASubDroneBase::AttachToDock()
 		return;
 	}
 	AttachToComponent(HostRoot, FAttachmentTransformRules::KeepWorldTransform);
+	SetPhasing(false);
 	Velocity = FVector::ZeroVector;
 	CollisionSphere->ComponentVelocity = FVector::ZeroVector;
 	bDockSettled = false;
@@ -227,14 +229,16 @@ void ASubDroneBase::TickFree(float Dt, const FSubDroneMotionProfile& Profile)
 	Offset += FVector(0.5f * FMath::PerlinNoise1D(T + BobSeed), FMath::PerlinNoise1D(0.83f * T + BobSeed + 17.f),
 		FMath::Sin(2.f * PI * T + BobSeed)) * Profile.BobAmplitude;
 
-	const FVector Goal = HostPawn->GetActorLocation() + FilteredHostFrame.RotateVector(Offset);
+	// Slot on the Shell's side of any wall (a rock between Shell and slot never becomes the goal).
+	const FVector Goal = ClipGoalToShell(HostPawn->GetActorLocation() + FilteredHostFrame.RotateVector(Offset));
 	const FVector GoalVel = Bay->GetHostVelocity() * VelocityFeedForward;
 	const float Dist = static_cast<float>(FVector::Dist(GetActorLocation(), Goal));
 
 	if (Dist > TeleportDistance)
 	{
-		SetActorLocationAndRotation(Goal, FilteredHostFrame, false, nullptr, ETeleportType::TeleportPhysics);
+		SetActorLocationAndRotation(FindRescuePoint(Goal), FilteredHostFrame, false, nullptr, ETeleportType::TeleportPhysics);
 		Velocity = GoalVel;
+		SetPhasing(false);
 		return;
 	}
 
@@ -288,9 +292,14 @@ void ASubDroneBase::MoveKinematic(const FVector& Goal, const FVector& GoalVel, f
 	CriticalSpring(X, V, Goal, GoalVel, HalfLife, Dt);
 
 	const FVector Rel = V - GoalVel;
-	if (Rel.SizeSquared() > FMath::Square(MaxRelativeSpeed))
+	const float MaxRel = bPhasing ? FMath::Min(MaxRelativeSpeed, PhaseSpeed) : MaxRelativeSpeed;
+	if (Rel.SizeSquared() > FMath::Square(MaxRel))
 	{
-		V = GoalVel + Rel.GetSafeNormal() * MaxRelativeSpeed;
+		V = GoalVel + Rel.GetSafeNormal() * MaxRel;
+		if (bPhasing)
+		{
+			X = OldPos + V * Dt; // steady glide through the obstacle
+		}
 	}
 
 	if (bApplyCeiling)
@@ -304,6 +313,16 @@ void ASubDroneBase::MoveKinematic(const FVector& Goal, const FVector& GoalVel, f
 	}
 
 	const FQuat NewRot = DampQuat(GetActorQuat(), FacingTarget, FacingHalfLife, Dt);
+
+	if (bPhasing)
+	{
+		// Unstuck: follow the spring path WITHOUT collision until the drone is in free water again.
+		SetActorLocationAndRotation(X, NewRot, false, nullptr, ETeleportType::TeleportPhysics);
+		Velocity = V;
+		CollisionSphere->ComponentVelocity = Velocity;
+		UpdatePhasing(Goal, Dt);
+		return;
+	}
 
 	// Single swept move per frame (location + rotation together -> one hierarchy update).
 	FHitResult Hit;
@@ -325,6 +344,164 @@ void ASubDroneBase::MoveKinematic(const FVector& Goal, const FVector& GoalVel, f
 
 	Velocity = V;
 	CollisionSphere->ComponentVelocity = Velocity; // makes AActor::GetVelocity() meaningful
+
+	if (bEnableUnstuck)
+	{
+		UpdateStuckWatchdog(OldPos, X, Hit.bBlockingHit, Goal, Dt);
+	}
+}
+
+// -------------------------------------------------------------------------------------- unstuck
+FCollisionQueryParams ASubDroneBase::MakeUnstuckQueryParams() const
+{
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(SubDroneUnstuck), false, this);
+	if (const APawn* Host = HostPawn.Get())
+	{
+		Params.AddIgnoredActor(Host);
+	}
+	return Params;
+}
+
+bool ASubDroneBase::IsBlockedAt(const FVector& Location) const
+{
+	const UWorld* World = GetWorld();
+	return World && World->OverlapBlockingTestByChannel(Location, FQuat::Identity, CollisionSphere->GetCollisionObjectType(),
+		FCollisionShape::MakeSphere(CollisionSphere->GetScaledSphereRadius()), MakeUnstuckQueryParams(),
+		FCollisionResponseParams(CollisionSphere->GetCollisionResponseToChannels()));
+}
+
+bool ASubDroneBase::SweepBlocked(const FVector& From, const FVector& To, FHitResult& OutHit) const
+{
+	const UWorld* World = GetWorld();
+	return World && World->SweepSingleByChannel(OutHit, From, To, FQuat::Identity, CollisionSphere->GetCollisionObjectType(),
+		FCollisionShape::MakeSphere(CollisionSphere->GetScaledSphereRadius()), MakeUnstuckQueryParams(),
+		FCollisionResponseParams(CollisionSphere->GetCollisionResponseToChannels()));
+}
+
+FVector ASubDroneBase::ClipGoalToShell(const FVector& Goal) const
+{
+	const APawn* Host = HostPawn.Get();
+	if (!bClipGoalToShellVisibility || !Host)
+	{
+		return Goal;
+	}
+	const FVector From = Host->GetActorLocation();
+	FHitResult Hit;
+	if (!SweepBlocked(From, Goal, Hit) || Hit.bStartPenetrating)
+	{
+		return Goal; // clear line (or the Shell itself scrapes geometry: keep the nominal slot)
+	}
+	// Free spot just before the first obstacle, on the Shell's side.
+	return FVector(Hit.Location) - (Goal - From).GetSafeNormal() * 5.0;
+}
+
+FVector ASubDroneBase::FindRescuePoint(const FVector& PreferredGoal) const
+{
+	const FVector Clipped = ClipGoalToShell(PreferredGoal);
+	if (!IsBlockedAt(Clipped))
+	{
+		return Clipped;
+	}
+	const APawn* Host = HostPawn.Get();
+	const FVector H = Host ? Host->GetActorLocation() : GetActorLocation();
+	const FVector Up = FilteredHostFrame.GetUpVector();
+	const FVector Right = FilteredHostFrame.GetRightVector();
+	const FVector Forward = FilteredHostFrame.GetForwardVector();
+	const FVector Candidates[] = { H + Up * 220.0, H + Right * 260.0, H - Right * 260.0, H + Forward * 450.0, H - Up * 220.0 };
+	for (const FVector& Candidate : Candidates)
+	{
+		const FVector Point = ClipGoalToShell(Candidate);
+		if (!IsBlockedAt(Point))
+		{
+			return Point;
+		}
+	}
+	return H + Up * 220.0;
+}
+
+void ASubDroneBase::SetPhasing(bool bNewPhasing)
+{
+	StuckTime = 0.f;
+	LostTime = 0.f;
+	PhaseTime = 0.f;
+	PhaseCheckTimer = 0.f;
+	if (bPhasing == bNewPhasing)
+	{
+		return;
+	}
+	bPhasing = bNewPhasing;
+	UE_LOG(LogSubDrone, Log, TEXT("%s %s"), *GetName(), bPhasing ? TEXT("stuck -> phasing through geometry") : TEXT("free water again"));
+	BP_OnPhaseShift(bPhasing);
+}
+
+void ASubDroneBase::RescueTeleport(const FVector& PreferredGoal)
+{
+	const FVector From = GetActorLocation();
+	const FVector To = FindRescuePoint(PreferredGoal);
+	SetActorLocation(To, false, nullptr, ETeleportType::TeleportPhysics);
+	Velocity = Bay.IsValid() ? Bay->GetHostVelocity() : FVector::ZeroVector;
+	CollisionSphere->ComponentVelocity = Velocity;
+	UE_LOG(LogSubDrone, Log, TEXT("%s rescue teleport (%.0f cm)"), *GetName(), FVector::Dist(From, To));
+	SetPhasing(false);
+	BP_OnRescueTeleport(From, To);
+}
+
+void ASubDroneBase::UpdateStuckWatchdog(const FVector& OldPos, const FVector& IntendedPos, bool bBlocked, const FVector& Goal, float Dt)
+{
+	const FVector Pos = GetActorLocation();
+	const double GoalDistSq = FVector::DistSquared(Pos, Goal);
+	if (GoalDistSq <= FMath::Square(StuckGoalTolerance))
+	{
+		StuckTime = 0.f;
+		LostTime = 0.f;
+		return;
+	}
+
+	// 1) Pressed against geometry: the swept move achieves only a fraction of the spring step.
+	const double Intended = FVector::Dist(OldPos, IntendedPos);
+	const double Achieved = FVector::Dist(OldPos, Pos);
+	const bool bNoProgress = bBlocked && Intended > 0.2 && Achieved < Intended * StuckProgressRatio;
+	StuckTime = bNoProgress ? StuckTime + Dt : FMath::Max(0.f, StuckTime - 2.f * Dt);
+
+	// 2) Lost: far behind with an obstacle in between (e.g. endlessly sliding along a cliff face).
+	LostCheckTimer -= Dt;
+	if (LostCheckTimer <= 0.f)
+	{
+		LostCheckTimer = 0.25f;
+		FHitResult Hit;
+		bLastPathClear = !SweepBlocked(Pos, Goal, Hit);
+	}
+	const float Leash = FMath::Max(FormationMotion.LeashRadius, DeployedMotion.LeashRadius);
+	LostTime = (GoalDistSq > FMath::Square(Leash) && !bLastPathClear) ? LostTime + Dt : 0.f;
+
+	if (StuckTime >= StuckTimeToPhase || LostTime >= LostTimeToPhase)
+	{
+		SetPhasing(true);
+	}
+}
+
+void ASubDroneBase::UpdatePhasing(const FVector& Goal, float Dt)
+{
+	PhaseTime += Dt;
+	PhaseCheckTimer -= Dt;
+	if (PhaseCheckTimer <= 0.f)
+	{
+		PhaseCheckTimer = 0.08f;
+		const FVector Pos = GetActorLocation();
+		if (!IsBlockedAt(Pos))
+		{
+			FHitResult Hit;
+			if (FVector::DistSquared(Pos, Goal) <= FMath::Square(StuckGoalTolerance) || !SweepBlocked(Pos, Goal, Hit))
+			{
+				SetPhasing(false); // out of the rock with a clear run to the slot
+				return;
+			}
+		}
+	}
+	if (PhaseTime >= MaxPhaseTime)
+	{
+		RescueTeleport(Goal);
+	}
 }
 
 float ASubDroneBase::GetCachedWaterSurfaceZ(const FVector& At, float Dt)

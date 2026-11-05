@@ -63,8 +63,12 @@ struct FMicroTorpedoBallistics
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guidance", meta = (ClampMin = "0"))
 	float MaxLateralAccel = 30000.f;
 
+	/**
+	 * Continuous proximity fuse: the torpedo detonates as soon as its path passes within this distance
+	 * of the COLLISION of a fuse target (any actor tagged ProximityTargetTag), not only of the aim point.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fuse", meta = (ClampMin = "0", Units = "cm"))
-	float ProximityFuseRadius = 45.f;
+	float ProximityFuseRadius = 55.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fuse", meta = (ClampMin = "0", Units = "s"))
 	float ArmingTime = 0.06f;
@@ -140,6 +144,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Damage")
 	TEnumAsByte<ECollisionChannel> CollisionChannel = ECC_WorldDynamic;
 
+	/** Actors with this tag (and CanBeDamaged) trigger the proximity fuse and are never "born-inside" ignored. Empty = any damageable actor. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Damage")
+	FName ProximityTargetTag = TEXT("AOS.FuseTarget");
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AOS_DK|Torpedo|FX")
 	TObjectPtr<UNiagaraSystem> ImpactFX;
 
@@ -161,6 +169,9 @@ private:
 	FVector GetGuidanceTarget(FVector& OutTargetVelocity) const;
 	void Detonate(const FHitResult& Hit, bool bHitSomething);
 	void Retire();
+	bool IsFuseTarget(const AActor* Actor) const;
+	/** Earliest fuse target touched by a sphere of ProximityFuseRadius swept along this frame's path. */
+	bool FindProximityHit(const FVector& From, const FVector& To, const FCollisionQueryParams& Params, FHitResult& OutHit) const;
 
 	FVector Vel = FVector::ZeroVector;
 	FQuat Heading = FQuat::Identity;
