@@ -2,6 +2,7 @@
 
 #include "AOS_DK/Submarine/Subdrones/Core/SubDroneBase.h"
 #include "AOS_DK/Submarine/ShellPawn.h"
+#include "AOS_DK/Submarine/Energy/ShellEnergyComponent.h"
 #include "EnhancedInputComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
@@ -108,6 +109,67 @@ void USubDroneBayComponent::BindInput(UEnhancedInputComponent* InputComponent)
 		InputComponent->BindAction(DroneAttackAction, ETriggerEvent::Completed, this, &USubDroneBayComponent::HandleAttackCompleted);
 		InputComponent->BindAction(DroneAttackAction, ETriggerEvent::Canceled, this, &USubDroneBayComponent::HandleAttackCompleted);
 	}
+	if (DroneReloadAction)
+	{
+		InputComponent->BindAction(DroneReloadAction, ETriggerEvent::Started, this, &USubDroneBayComponent::HandleReloadInput);
+	}
+}
+
+void USubDroneBayComponent::HandleReloadInput()
+{
+	RequestReload();
+}
+
+void USubDroneBayComponent::RequestReload()
+{
+	UShellEnergyComponent* Energy = GetOwner() ? GetOwner()->FindComponentByClass<UShellEnergyComponent>() : nullptr;
+	for (ASubDroneBase* Drone : Drones)
+	{
+		if (!IsValid(Drone))
+		{
+			continue;
+		}
+		ESubDroneReloadResult Result = Drone->CanStartReload();
+		if (Result == ESubDroneReloadResult::NotSupported)
+		{
+			continue;
+		}
+		const float Cost = Drone->GetReloadEnergyCost();
+		if (Result == ESubDroneReloadResult::Accepted)
+		{
+			// The Shell pays first; the drone starts only on a successful (atomic) payment.
+			if (Cost > 0.f && (!Energy || !Energy->TryConsumeEnergy(Cost, TEXT("DroneReload"))))
+			{
+				Result = ESubDroneReloadResult::NoPower;
+			}
+			else
+			{
+				Drone->StartReload();
+			}
+		}
+		OnReloadRequested.Broadcast(Drone, Result, Cost);
+	}
+}
+
+void USubDroneBayComponent::SetServiceStationLinked(UObject* Station, bool bLinked)
+{
+	ServiceStations.RemoveAll([Station](const TWeakObjectPtr<UObject>& Ptr) { return !Ptr.IsValid() || Ptr.Get() == Station; });
+	if (bLinked && Station)
+	{
+		ServiceStations.Add(Station);
+	}
+}
+
+bool USubDroneBayComponent::IsAtServiceStation() const
+{
+	for (const TWeakObjectPtr<UObject>& Station : ServiceStations)
+	{
+		if (Station.IsValid())
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void USubDroneBayComponent::HandleToggleInput()

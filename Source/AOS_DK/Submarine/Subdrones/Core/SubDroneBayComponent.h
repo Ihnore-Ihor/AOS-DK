@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Engine/EngineTypes.h"
+#include "AOS_DK/Submarine/Subdrones/Core/SubDroneTypes.h"
 #include "SubDroneBayComponent.generated.h"
 
 class ASubDroneBase;
@@ -33,11 +34,13 @@ struct FSubDroneSlot
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSubDroneSpawned, ASubDroneBase*, Drone, int32, SlotIndex);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnSubDroneReloadRequested, ASubDroneBase*, Drone, ESubDroneReloadResult, Result, float, EnergyCostPercent);
 
 /**
  * Lives on the Shell (AShellPawn::DroneBay). Owns the drone processes, routes Shell input
- * (IA_Sub_DroneToggle / IA_Sub_DroneAttack) and offers Shell-side services to the drones:
- * crescent formation, combat positions, dock sockets, aim ray, water surface, munition gate.
+ * (IA_Sub_DroneToggle / IA_Sub_DroneAttack / IA_Sub_DroneReload) and offers Shell-side services to
+ * the drones: crescent formation, combat positions, dock sockets, aim ray, water surface, munition
+ * gate, service-station link and the energy payment of manual reloads.
  * Never ticks.
  */
 UCLASS(ClassGroup = (AOS_DK), meta = (BlueprintSpawnableComponent))
@@ -64,6 +67,20 @@ public:
 	/** Hold-to-fire: forwarded only to drones that accept it (Deployed via R); never deploys a drone. */
 	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Drones")
 	void SetPrimaryActionHeld(bool bHeld);
+
+	/**
+	 * RMB: every module that can reload loads its next magazine from its internal reserve. Each started
+	 * reload is paid once from the Shell core (blocked if the core cannot afford it). Broadcasts the result.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Drones")
+	void RequestReload();
+
+	/** A dock berth / service station links (or unlinks) the Shell: drones are rearmed in place. */
+	void SetServiceStationLinked(UObject* Station, bool bLinked);
+
+	/** The Shell is moored at a service station (dock): drone munitions are being replenished. */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Drones")
+	bool IsAtServiceStation() const;
 
 	UFUNCTION(BlueprintPure, Category = "AOS_DK|Drones")
 	ASubDroneBase* GetDrone(int32 SlotIndex) const;
@@ -103,6 +120,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "AOS_DK|Drones")
 	FOnSubDroneSpawned OnDroneSpawned;
 
+	/** Result of every manual reload request (HUD terminal log, audio). */
+	UPROPERTY(BlueprintAssignable, Category = "AOS_DK|Drones")
+	FOnSubDroneReloadRequested OnReloadRequested;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -133,6 +154,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOS_DK|Input")
 	TObjectPtr<UInputAction> DroneAttackAction;
 
+	/** IA_Sub_DroneReload (RMB, press): load the next magazine from the drone reserve. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOS_DK|Input")
+	TObjectPtr<UInputAction> DroneReloadAction;
+
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Aim", meta = (Units = "cm"))
 	float AimTraceDistance = 8000.f;
 
@@ -150,6 +175,7 @@ private:
 	void HandleToggleInput();
 	void HandleAttackStarted();
 	void HandleAttackCompleted();
+	void HandleReloadInput();
 
 	UFUNCTION()
 	void HandleHostControllerChanged(APawn* Pawn, AController* OldController, AController* NewController);
@@ -158,4 +184,7 @@ private:
 	TArray<TObjectPtr<ASubDroneBase>> Drones;
 
 	bool bPrimaryHeld = false;
+
+	/** Linked service stations (normally 0 or 1). */
+	TArray<TWeakObjectPtr<UObject>> ServiceStations;
 };

@@ -92,7 +92,7 @@ void ASubDrone_Attacker::BeginPlay()
 	{
 		BuildRing();
 	}
-	InternalReserveAmmo = bStartWithFullAmmo ? InternalReserveCapacity : 0;
+	InternalReserveAmmo = bStartWithFullAmmo ? GetReserveCapacity() : 0;
 
 	for (int32 Index = 0; Index < PoolPrewarmCount; ++Index)
 	{
@@ -176,7 +176,7 @@ void ASubDrone_Attacker::FlushRingUpdates()
 
 int32 ASubDrone_Attacker::AddToReserve(int32 Count)
 {
-	const int32 Accepted = FMath::Clamp(Count, 0, InternalReserveCapacity - InternalReserveAmmo);
+	const int32 Accepted = FMath::Clamp(Count, 0, GetReserveCapacity() - InternalReserveAmmo);
 	if (Accepted > 0)
 	{
 		InternalReserveAmmo += Accepted;
@@ -236,7 +236,7 @@ void ASubDrone_Attacker::Tick(float DeltaSeconds)
 	if (bAmmoDirty)
 	{
 		bAmmoDirty = false;
-		OnAmmoChanged.Broadcast(CurrentRingAmmo, RingSlotCount, InternalReserveAmmo, InternalReserveCapacity);
+		OnAmmoChanged.Broadcast(CurrentRingAmmo, RingSlotCount, InternalReserveAmmo, GetReserveCapacity());
 	}
 }
 
@@ -278,7 +278,7 @@ void ASubDrone_Attacker::TickCombat(float Dt)
 		bOverheated = false;
 	}
 
-	const bool bWantFire = bTriggerHeld && CanEngage() && !bOverheated && CurrentRingAmmo > 0;
+	const bool bWantFire = bTriggerHeld && CanEngage() && !bOverheated && !bReloading && CurrentRingAmmo > 0;
 
 	switch (CombatState)
 	{
@@ -380,7 +380,9 @@ void ASubDrone_Attacker::TickAmmo(float Dt)
 	const ESubDroneMobilityState Mobility = GetMobilityState();
 	const bool bDocked = Mobility == ESubDroneMobilityState::Docked;
 
-	// Tier 3 -> 2: reserve supply (Shell dock or generator).
+	const bool bServiced = IsBeingServiced();
+
+	// Tier 3 -> 2: physical resupply from the Shell only (hull socket / dock). Nothing regenerates.
 	if (ReserveSupplyPolicy)
 	{
 		const int32 Granted = ReserveSupplyPolicy->TickReserveResupply(*this, Dt);
@@ -390,12 +392,11 @@ void ASubDrone_Attacker::TickAmmo(float Dt)
 		}
 	}
 
-	// Tier 2 -> 1: magnetic ring refill from the internal reserve.
-	const bool bCanRefill = !IsRingFull() && InternalReserveAmmo > 0 &&
-		(bDocked || (!IsFiring() && GetTimeSinceLastShot() >= RingRefillDelayAfterShot));
-	if (bCanRefill)
+	// Tier 2 -> 1: the ring is fed from the reserve only by a manual reload (RMB) or while serviced.
+	const bool bFeeding = (bReloading || bServiced) && !IsRingFull() && InternalReserveAmmo > 0;
+	if (bFeeding)
 	{
-		const float Interval = bDocked ? DockedRingRefillInterval : RingRefillInterval;
+		const float Interval = bServiced ? DockedRingRefillInterval : ReloadRoundInterval;
 		RingRefillAccumulator += Dt;
 		for (int32 Slot = 0; Slot < SlotLoaded.Num() && RingRefillAccumulator >= Interval && InternalReserveAmmo > 0; ++Slot)
 		{
@@ -412,9 +413,13 @@ void ASubDrone_Attacker::TickAmmo(float Dt)
 	{
 		RingRefillAccumulator = 0.f;
 	}
+	if (bReloading && (IsRingFull() || InternalReserveAmmo <= 0))
+	{
+		FinishReload();
+	}
 
 	// Resupply request: reserve exhausted and the policy needs the Shell.
-	const bool bNeedResupply = ReserveSupplyPolicy && ReserveSupplyPolicy->RequiresDocking() && InternalReserveAmmo == 0 && !bDocked;
+	const bool bNeedResupply = ReserveSupplyPolicy && ReserveSupplyPolicy->RequiresDocking() && InternalReserveAmmo == 0 && !bServiced;
 	if (bNeedResupply != bResupplyRequested)
 	{
 		bResupplyRequested = bNeedResupply;
@@ -432,6 +437,61 @@ void ASubDrone_Attacker::TickAmmo(float Dt)
 	{
 		RequestUndock();
 	}
+}
+
+bool ASubDrone_Attacker::IsBeingServiced() const
+{
+	if (GetMobilityState() == ESubDroneMobilityState::Docked)
+	{
+		return true;
+	}
+	const USubDroneBayComponent* BayPtr = GetBay();
+	return BayPtr && BayPtr->IsAtServiceStation();
+}
+
+ESubDroneReloadResult ASubDrone_Attacker::CanStartReload() const
+{
+	const ESubDroneMobilityState Mobility = GetMobilityState();
+	if (Mobility == ESubDroneMobilityState::Docking || IsBeingServiced())
+	{
+		return ESubDroneReloadResult::Unavailable;
+	}
+	if (bReloading)
+	{
+		return ESubDroneReloadResult::Busy;
+	}
+	if (IsRingFull())
+	{
+		return ESubDroneReloadResult::Full;
+	}
+	if (InternalReserveAmmo <= 0)
+	{
+		return ESubDroneReloadResult::NoReserve;
+	}
+	return ESubDroneReloadResult::Accepted;
+}
+
+void ASubDrone_Attacker::StartReload()
+{
+	if (CanStartReload() != ESubDroneReloadResult::Accepted)
+	{
+		return;
+	}
+	bReloading = true;
+	RingRefillAccumulator = 0.f;
+	if (CombatState == EAttackerCombatState::SpinUp || CombatState == EAttackerCombatState::Attack)
+	{
+		SetCombatState(EAttackerCombatState::Cooling); // the feed and the launcher never run together
+	}
+	bAmmoDirty = true;
+	BP_OnReloadStarted(FMath::Min(RingSlotCount - CurrentRingAmmo, InternalReserveAmmo));
+}
+
+void ASubDrone_Attacker::FinishReload()
+{
+	bReloading = false;
+	bAmmoDirty = true;
+	BP_OnReloadFinished();
 }
 
 void ASubDrone_Attacker::TickVisuals(float Dt)

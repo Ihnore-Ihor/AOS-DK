@@ -29,9 +29,12 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAttackerResupplyRequest, bool, bR
  * Two counter-rotating hull sections around an induction generator; a magnetic ring of
  * cavitation micro-torpedoes in the central groove.
  *
- * Ammo is two-tier: CurrentRingAmmo (ring, visible) <- InternalReserveAmmo (inside the drone)
- * <- Shell (docking, via the reserve supply policy). An exhausted reserve raises a resupply
- * request; once the ring is empty too, the drone docks on the Shell, reloads and returns.
+ * Ammo is two-tier: CurrentRingAmmo (ring, visible) <- InternalReserveAmmo (inside the drone,
+ * ReserveMagazines full rings) <- Shell (physical resupply only, via the reserve supply policy).
+ *  - The ring is refilled ONLY by a manual reload (RMB, IA_Sub_DroneReload): the next magazine is
+ *    pulled from the reserve, the Shell core pays ReloadEnergyCost once (blocked without power).
+ *  - Nothing regenerates. Ring and reserve empty = the drone cannot fire; it is rearmed only on the
+ *    hull socket (auto-dock when dry) or while the Shell is moored at a dock / service station.
  */
 UCLASS(Blueprintable)
 class AOS_DK_API ASubDrone_Attacker : public ASubDroneBase
@@ -62,13 +65,30 @@ public:
 	int32 GetReserveAmmo() const { return InternalReserveAmmo; }
 
 	UFUNCTION(BlueprintPure, Category = "AOS_DK|Attacker")
-	int32 GetReserveCapacity() const { return InternalReserveCapacity; }
+	int32 GetReserveCapacity() const { return ReserveMagazines * RingSlotCount; }
 
 	UFUNCTION(BlueprintPure, Category = "AOS_DK|Attacker")
 	bool IsRingFull() const { return CurrentRingAmmo >= RingSlotCount; }
 
 	UFUNCTION(BlueprintPure, Category = "AOS_DK|Attacker")
-	bool IsReserveFull() const { return InternalReserveAmmo >= InternalReserveCapacity; }
+	bool IsReserveFull() const { return InternalReserveAmmo >= GetReserveCapacity(); }
+
+	/** RMB reload in progress (torpedoes travel from the reserve into the ring; firing is blocked). */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Attacker")
+	bool IsReloading() const { return bReloading; }
+
+	/** Ring and reserve empty: no shot is possible until the Shell rearms the drone. */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Attacker")
+	bool IsAmmoDepleted() const { return CurrentRingAmmo <= 0 && InternalReserveAmmo <= 0; }
+
+	/** Docked on the hull socket, or the Shell is moored at a service station: munitions flow in. */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Attacker")
+	bool IsBeingServiced() const;
+
+	// --- Manual reload (ASubDroneBase) ---------------------------------------------------------
+	virtual ESubDroneReloadResult CanStartReload() const override;
+	virtual float GetReloadEnergyCost() const override { return ReloadEnergyCost; }
+	virtual void StartReload() override;
 
 	/** Reserve exhausted and the supply policy needs the Shell. */
 	UFUNCTION(BlueprintPure, Category = "AOS_DK|Attacker")
@@ -115,6 +135,13 @@ protected:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "AOS_DK|Attacker", meta = (DisplayName = "On Resupply Request Changed"))
 	void BP_OnResupplyRequestChanged(bool bRequested);
+
+	/** Manual reload started (Rounds = torpedoes that will be moved into the ring). */
+	UFUNCTION(BlueprintImplementableEvent, Category = "AOS_DK|Attacker", meta = (DisplayName = "On Reload Started"))
+	void BP_OnReloadStarted(int32 Rounds);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "AOS_DK|Attacker", meta = (DisplayName = "On Reload Finished"))
+	void BP_OnReloadFinished();
 
 	// --- Components ---------------------------------------------------------------------------
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -171,9 +198,9 @@ protected:
 	float RingMaxSpinDegPerSec = 420.f;
 
 	// --- Ammo: ring (tier 1) --------------------------------------------------------------------
-	/** CurrentRingAmmo capacity = visible slots in the magnetic ring. */
+	/** CurrentRingAmmo capacity = visible slots in the magnetic ring = one magazine. */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Ammo", meta = (ClampMin = "1", ClampMax = "96"))
-	int32 RingSlotCount = 18;
+	int32 RingSlotCount = 32;
 
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Ammo", meta = (ClampMin = "0", Units = "cm"))
 	float RingRadius = 13.5f;
@@ -181,20 +208,23 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Ammo", meta = (Units = "cm"))
 	float RingAxialOffset = 0.f;
 
-	/** Ring refill from the reserve (one torpedo per interval). */
-	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Ammo", meta = (ClampMin = "0.01", Units = "s"))
-	float RingRefillInterval = 0.12f;
-
-	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Ammo", meta = (ClampMin = "0", Units = "s"))
-	float RingRefillDelayAfterShot = 0.35f;
-
+	/** Ring refill speed while serviced (hull socket / dock), one torpedo per interval. */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Ammo", meta = (ClampMin = "0.005", Units = "s"))
-	float DockedRingRefillInterval = 0.04f;
+	float DockedRingRefillInterval = 0.025f;
 
 	// --- Ammo: internal reserve (tier 2) ---------------------------------------------------------
-	/** InternalReserveAmmo capacity (default 3 full ring reloads). */
-	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Ammo", meta = (ClampMin = "0"))
-	int32 InternalReserveCapacity = 54;
+	/** Internal reserve in full ring magazines: 7 x 32 = 224 + 32 in the ring = 8 magazines, 256 torpedoes. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Ammo", meta = (ClampMin = "0", ClampMax = "16"))
+	int32 ReserveMagazines = 7;
+
+	// --- Manual reload (RMB) ------------------------------------------------------------------------
+	/** Speed of the magnetic feed during a manual reload (32 torpedoes ~ 0.7 s). Firing is blocked meanwhile. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload", meta = (ClampMin = "0.005", Units = "s"))
+	float ReloadRoundInterval = 0.022f;
+
+	/** One-shot cost paid by the Shell core per manual reload, % of the core. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload", meta = (ClampMin = "0", ClampMax = "25"))
+	float ReloadEnergyCost = 1.5f;
 
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Ammo")
 	bool bStartWithFullAmmo = true;
@@ -205,7 +235,7 @@ protected:
 
 	/** Safety: leave the dock after this long even if the Shell could not supply everything. */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Ammo", meta = (ClampMin = "0.5", Units = "s"))
-	float DockResupplyTimeout = 6.f;
+	float DockResupplyTimeout = 8.f;
 
 	/** How the internal reserve is refilled (Dock Resupply by default; Timed Regeneration as alternative). */
 	UPROPERTY(EditAnywhere, Instanced, BlueprintReadOnly, Category = "AOS_DK|Attacker|Ammo")
@@ -305,6 +335,7 @@ private:
 	void TickCombat(float Dt);
 	void TickSpin(float Dt);
 	void TickAmmo(float Dt);
+	void FinishReload();
 	void TickVisuals(float Dt);
 	void UpdateAim();
 	float GetCombatSpinNormalized() const;
@@ -336,6 +367,7 @@ private:
 	int32 CurrentRingAmmo = 0;
 	int32 InternalReserveAmmo = 0;
 	bool bResupplyRequested = false;
+	bool bReloading = false;
 	bool bAmmoDirty = true;
 
 	FVector AimPoint = FVector::ZeroVector;
