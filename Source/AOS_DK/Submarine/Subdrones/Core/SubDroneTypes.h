@@ -22,6 +22,19 @@ enum class ESubDroneMobilityState : uint8
 	Docked    UMETA(DisplayName = "Docked")
 };
 
+/** Answer of a module drone to a manual reload request (IA_Sub_DroneReload, RMB). */
+UENUM(BlueprintType)
+enum class ESubDroneReloadResult : uint8
+{
+	Accepted     UMETA(DisplayName = "Accepted"),           // the next magazine is being loaded
+	NotSupported UMETA(DisplayName = "Not supported"),      // the module has nothing to reload
+	Busy         UMETA(DisplayName = "Busy"),               // a reload is already running
+	Full         UMETA(DisplayName = "Ring full"),
+	NoReserve    UMETA(DisplayName = "Reserve empty"),      // only the Shell (hull socket / dock) can rearm it
+	Unavailable  UMETA(DisplayName = "Unavailable"),        // docking / being serviced: rearmed automatically
+	NoPower      UMETA(DisplayName = "Insufficient power")  // the Shell core cannot pay the reload
+};
+
 /** Motion feel of one mobility mode. Distances in cm, times in seconds. */
 USTRUCT(BlueprintType)
 struct FSubDroneMotionProfile

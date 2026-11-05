@@ -7,10 +7,11 @@
 class ASubDrone_Attacker;
 
 /**
- * Strategy that refills the drone's INTERNAL RESERVE (second ammo tier).
- * The magnetic ring itself is always refilled from the reserve by the drone (first tier).
- * Swap the policy class in BP_SubDrone_Attacker -> Reserve Supply Policy; the drone only
- * knows ASubDrone_Attacker::AddToReserve and RequiresDocking().
+ * Strategy that refills the drone's INTERNAL RESERVE (second ammo tier) from a PHYSICAL source.
+ * The magnetic ring is fed from the reserve by the drone itself (manual reload / service).
+ * Design rule: no policy may create torpedoes from nothing (the former timed regeneration was
+ * removed) - every round comes from the Shell magazine. Swap the class in BP_SubDrone_Attacker ->
+ * Reserve Supply Policy; the drone only knows ASubDrone_Attacker::AddToReserve and RequiresDocking().
  */
 UCLASS(Abstract, EditInlineNew, DefaultToInstanced, CollapseCategories, Blueprintable)
 class AOS_DK_API UTorpedoReloadPolicy : public UObject
@@ -29,7 +30,10 @@ public:
 	virtual float GetProgress() const { return 0.f; }
 };
 
-/** Default: the reserve is refilled only while the drone is physically docked on the Shell. */
+/**
+ * Default: the reserve is refilled only while the drone is serviced - docked on the Shell hull socket,
+ * or the Shell itself is moored at a dock / service station (ASubDrone_Attacker::IsBeingServiced).
+ */
 UCLASS(meta = (DisplayName = "Dock Resupply (Shell)"))
 class AOS_DK_API UTorpedoReloadPolicy_DockResupply : public UTorpedoReloadPolicy
 {
@@ -40,30 +44,11 @@ public:
 	virtual bool RequiresDocking() const override { return true; }
 	virtual float GetProgress() const override { return SecondsPerTorpedo > 0.f ? Accumulator / SecondsPerTorpedo : 1.f; }
 
-	/** Transfer speed from the Shell magazine into the drone (54 rounds ~ 1.6 s). */
+	/** Transfer speed from the Shell magazine into the drone (224 rounds ~ 3.4 s). */
 	UPROPERTY(EditAnywhere, Category = "Reload", meta = (ClampMin = "0.005", Units = "s"))
-	float SecondsPerTorpedo = 0.03f;
+	float SecondsPerTorpedo = 0.015f;
 
 private:
 	float Accumulator = 0.f;
 };
 
-/** Alternative: the drone's generator slowly synthesises reserve rounds anywhere (never docks). */
-UCLASS(meta = (DisplayName = "Timed Regeneration (generator)"))
-class AOS_DK_API UTorpedoReloadPolicy_TimedRegen : public UTorpedoReloadPolicy
-{
-	GENERATED_BODY()
-
-public:
-	virtual int32 TickReserveResupply(ASubDrone_Attacker& Drone, float DeltaSeconds) override;
-	virtual float GetProgress() const override { return SecondsPerTorpedo > 0.f ? Accumulator / SecondsPerTorpedo : 1.f; }
-
-	UPROPERTY(EditAnywhere, Category = "Reload", meta = (ClampMin = "0.01", Units = "s"))
-	float SecondsPerTorpedo = 0.8f;
-
-	UPROPERTY(EditAnywhere, Category = "Reload", meta = (ClampMin = "0", Units = "s"))
-	float DelayAfterLastShot = 1.0f;
-
-private:
-	float Accumulator = 0.f;
-};

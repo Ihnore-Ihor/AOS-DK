@@ -5,7 +5,7 @@
 
 int32 UTorpedoReloadPolicy_DockResupply::TickReserveResupply(ASubDrone_Attacker& Drone, float DeltaSeconds)
 {
-	if (Drone.GetMobilityState() != ESubDroneMobilityState::Docked || Drone.IsReserveFull())
+	if (!Drone.IsBeingServiced() || Drone.IsReserveFull())
 	{
 		Accumulator = 0.f;
 		return 0;
@@ -22,21 +22,5 @@ int32 UTorpedoReloadPolicy_DockResupply::TickReserveResupply(ASubDrone_Attacker&
 			Count = Bay->RequestMunitionResupply(&Drone, Count); // Shell stock gate (RAM inventory later)
 		}
 	}
-	return Count;
-}
-
-int32 UTorpedoReloadPolicy_TimedRegen::TickReserveResupply(ASubDrone_Attacker& Drone, float DeltaSeconds)
-{
-	if (Drone.IsReserveFull() || Drone.IsFiring() || Drone.GetTimeSinceLastShot() < DelayAfterLastShot)
-	{
-		if (Drone.IsReserveFull())
-		{
-			Accumulator = 0.f;
-		}
-		return 0;
-	}
-	Accumulator += DeltaSeconds;
-	const int32 Count = FMath::FloorToInt32(Accumulator / SecondsPerTorpedo);
-	Accumulator -= Count * SecondsPerTorpedo;
 	return Count;
 }
