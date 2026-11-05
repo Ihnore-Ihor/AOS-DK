@@ -66,7 +66,19 @@ public:
 	float HeadlightScale = 0.001f;
 
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|MarineSnow|Light", meta = (ClampMin = "0"))
-	float SunScale = 0.002f;
+	float SunScale = 0.0005f;
+
+	/** Fraction of flakes kept right below the surface (wave-mixed layer breaks marine-snow aggregates). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|MarineSnow|Waves", meta = (ClampMin = "0", ClampMax = "1"))
+	float SurfaceDensity = 0.25f;
+
+	/** Depth below the local wave surface where the full flake density is reached, cm. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|MarineSnow|Waves", meta = (ClampMin = "1", Units = "cm"))
+	float FullDensityDepth = 2500.f;
+
+	/** Flakes closer than this to the local wave surface are removed (never rendered in air), cm. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|MarineSnow|Waves", meta = (ClampMin = "0", Units = "cm"))
+	float SurfaceClearance = 20.f;
 
 	/** Camera velocity smoothing (1/s). */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|MarineSnow", meta = (ClampMin = "0"))
@@ -80,6 +92,21 @@ private:
 	void ResolveReferences();
 	float GetWaterSurfaceZ(const FVector& At) const;
 	void UpdateHeadlights(const AActor* ViewTarget);
+	void SetupWaves();
+	FVector ComputeWaterOrbitalVelocity(const FVector& At, float WaveTime) const;
+
+	/** Gerstner waves of the ocean (same data the GPU water mesh and the buoyancy use). */
+	struct FSnowWave
+	{
+		FVector2D WaveVector;  // k * direction, 1/cm
+		FVector2D Direction;
+		float Speed = 0.f;     // angular frequency, rad/s
+		float Amplitude = 0.f; // cm
+		float Q = 0.f;         // horizontal (steepness) amplitude, cm
+		float K = 0.f;         // wave number, 1/cm
+	};
+	TArray<FSnowWave> Waves;
+	float WaveBaseZ = 0.f;
 
 	UPROPERTY(VisibleAnywhere, Category = "AOS_DK|MarineSnow")
 	TObjectPtr<UProceduralMeshComponent> Mesh;

@@ -89,6 +89,24 @@ public:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Optics", meta = (Units = "m"))
 	float AphoticFadeStartM = 120.f;
 
+	/**
+	 * Mean of the caustic light function (M_LF_OceanCaustics_AOS: lerp(0.2, 1, saturate(3 * pattern))).
+	 * A light function can only darken (output is clamped to 1), while real caustics only redistribute the
+	 * irradiance E_d(z). The sun is boosted by 1 / mean(LF) inside the caustic layer to keep E_d(z) unchanged.
+	 */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Caustics", meta = (ClampMin = "0.05", ClampMax = "1"))
+	float CausticMeanTransmission = 0.545f;
+
+	/** Must match CausticExtinctionDepth / CausticCutStart / CausticCutEnd of the light function, m. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Caustics", meta = (Units = "m"))
+	float CausticExtinctionDepthM = 11.f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Caustics", meta = (Units = "m"))
+	float CausticCutStartM = 12.f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Caustics", meta = (Units = "m"))
+	float CausticCutEndM = 15.f;
+
 	/** Directional light volumetric scattering in the epipelagic (PDF 4.0-7.0). */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Light", meta = (ClampMin = "0"))
 	float SunVolumetricScatteringUnderwater = 5.f;
@@ -102,10 +120,24 @@ public:
 
 	// --- Underwater PP (WaterBody MID) intensities, the colours live in MI_UnderwaterPostProcess_AOS -----
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|PostProcess", meta = (ClampMin = "0"))
-	float PPFogAmbientIntensity = 0.35f;
+	float PPFogAmbientIntensity = 4.f;
 
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|PostProcess", meta = (ClampMin = "0"))
 	float PPFogScatterIntensity = 0.6f;
+
+	/**
+	 * Underwater auto-exposure floor (EV100) right below the surface: low enough to keep the exposure the
+	 * camera had in daylight, so diving does not cut the image by several stops.
+	 */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Exposure")
+	float ExposureMinEVSurface = -4.f;
+
+	/** Exposure floor reached in the aphotic zone: the abyss stays black instead of being auto-brightened. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Exposure")
+	float ExposureMinEVDeep = 0.f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Exposure")
+	float ExposureMaxEV = 6.f;
 
 	/** Seconds-based smoothing of the depth (avoids popping when the camera bobs at the waterline). */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean", meta = (ClampMin = "0"))

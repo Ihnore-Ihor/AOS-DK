@@ -4,6 +4,7 @@
 #include "Components/DirectionalLightComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "Engine/DirectionalLight.h"
+#include "GerstnerWaterWaves.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -11,6 +12,7 @@
 #include "Scalability.h"
 #include "WaterBodyActor.h"
 #include "WaterBodyComponent.h"
+#include "WaterWaves.h"
 
 namespace AOSSnowParams
 {
@@ -24,6 +26,9 @@ namespace AOSSnowParams
 	static const FName HLPos[2] = { FName(TEXT("HL0Pos")), FName(TEXT("HL1Pos")) };
 	static const FName HLDir[2] = { FName(TEXT("HL0Dir")), FName(TEXT("HL1Dir")) };
 	static const FName HLColor[2] = { FName(TEXT("HL0Color")), FName(TEXT("HL1Color")) };
+	static const FName WaveTime(TEXT("WaveTime"));
+	static const FName WaveP(TEXT("WaveP"));
+	static constexpr int32 MaxWaves = 16;
 }
 
 AAOSMarineSnowField::AAOSMarineSnowField()
@@ -67,7 +72,80 @@ void AAOSMarineSnowField::BeginPlay()
 		Mesh->SetMaterial(0, SnowMID);
 		SnowMID->SetScalarParameterValue(AOSSnowParams::BoxSize, BoxSize);
 		SnowMID->SetVectorParameterValue(AOSSnowParams::Drift, FLinearColor(DriftVelocity.X, DriftVelocity.Y, DriftVelocity.Z, 0.f));
+		SetupWaves();
 	}
+}
+
+void AAOSMarineSnowField::SetupWaves()
+{
+	Waves.Reset();
+	WaveBaseZ = WaterBody ? WaterBody->GetActorLocation().Z : 0.f;
+
+	const UWaterWavesBase* WavesBase = WaterBody ? WaterBody->GetWaterWaves() : nullptr;
+	const UGerstnerWaterWaves* Gerstner = WavesBase ? Cast<UGerstnerWaterWaves>(WavesBase->GetWaterWaves()) : nullptr;
+	if (Gerstner)
+	{
+		for (const FGerstnerWave& W : Gerstner->GetGerstnerWaves())
+		{
+			FSnowWave& S = Waves.AddDefaulted_GetRef();
+			S.WaveVector = W.WaveVector;
+			S.Direction = FVector2D(W.Direction.X, W.Direction.Y);
+			S.Speed = W.WaveSpeed;
+			S.Amplitude = W.Amplitude;
+			S.Q = W.Q;
+			S.K = W.WaveVector.Size();
+		}
+		Waves.Sort([](const FSnowWave& A, const FSnowWave& B) { return A.Amplitude > B.Amplitude; });
+	}
+
+	// The shader evaluates up to MaxWaves (16 = all waves of DA_OceanWaves_AOS); the rest only widens the clearance.
+	float Residual = 0.f;
+	for (int32 i = AOSSnowParams::MaxWaves; i < Waves.Num(); ++i)
+	{
+		Residual += FMath::Square(Waves[i].Amplitude);
+	}
+	if (Waves.Num() > AOSSnowParams::MaxWaves)
+	{
+		Waves.SetNum(AOSSnowParams::MaxWaves);
+	}
+
+	for (int32 i = 0; i < AOSSnowParams::MaxWaves; ++i)
+	{
+		const FName NameA(*FString::Printf(TEXT("GW%dA"), i));
+		const FName NameB(*FString::Printf(TEXT("GW%dB"), i));
+		if (Waves.IsValidIndex(i))
+		{
+			const FSnowWave& W = Waves[i];
+			SnowMID->SetVectorParameterValue(NameA, FLinearColor(W.WaveVector.X, W.WaveVector.Y, W.Speed, W.Amplitude));
+			SnowMID->SetVectorParameterValue(NameB, FLinearColor(W.Direction.X, W.Direction.Y, W.Q, W.K));
+		}
+		else
+		{
+			SnowMID->SetVectorParameterValue(NameA, FLinearColor(0.f, 0.f, 0.f, 0.f));
+			SnowMID->SetVectorParameterValue(NameB, FLinearColor(1.f, 0.f, 0.f, 0.f));
+		}
+	}
+	const float Clearance = SurfaceClearance + 2.f * FMath::Sqrt(Residual);
+	SnowMID->SetVectorParameterValue(AOSSnowParams::WaveP, FLinearColor(WaveBaseZ, Clearance, SurfaceDensity, FullDensityDepth));
+}
+
+FVector AAOSMarineSnowField::ComputeWaterOrbitalVelocity(const FVector& At, float WaveTime) const
+{
+	// d/dt of the Gerstner displacement of a water parcel, attenuated by e^(k z) below the surface
+	// ("Фізика хвиль океану": u = wA e^{kz} cos(kx - wt), w = wA e^{kz} sin(kx - wt)).
+	const float Depth = FMath::Max(WaveBaseZ - At.Z, 0.f);
+	FVector Velocity = FVector::ZeroVector;
+	for (const FSnowWave& W : Waves)
+	{
+		const float Theta = W.WaveVector.X * At.X + W.WaveVector.Y * At.Y - W.Speed * WaveTime;
+		float SinT, CosT;
+		FMath::SinCos(&SinT, &CosT, Theta);
+		const float Decay = FMath::Exp(-W.K * Depth);
+		Velocity.X += W.Q * W.Speed * CosT * W.Direction.X * Decay;
+		Velocity.Y += W.Q * W.Speed * CosT * W.Direction.Y * Decay;
+		Velocity.Z += W.Amplitude * W.Speed * SinT * Decay;
+	}
+	return Velocity;
 }
 
 void AAOSMarineSnowField::BuildMesh(int32 Count)
@@ -142,11 +220,13 @@ float AAOSMarineSnowField::GetWaterSurfaceZ(const FVector& At) const
 	}
 	if (const UWaterBodyComponent* Body = WaterBody->GetWaterBodyComponent())
 	{
-		FVector SurfaceLocation, SurfaceNormal, Velocity;
-		float WaterDepth = 0.f;
-		if (Body->GetWaterSurfaceInfoAtLocation(At, SurfaceLocation, SurfaceNormal, Velocity, WaterDepth, false))
+		// Wave-aware surface height (PDF: z_wave). GetWaterSurfaceInfoAtLocation() only returns the flat
+		// water plane, so the query must explicitly include the Gerstner waves.
+		const TValueOrError<FWaterBodyQueryResult, EWaterBodyQueryError> Query = Body->TryQueryWaterInfoClosestToWorldLocation(
+			At, EWaterBodyQueryFlags::ComputeLocation | EWaterBodyQueryFlags::IncludeWaves);
+		if (Query.HasValue())
 		{
-			return SurfaceLocation.Z;
+			return Query.GetValue().GetWaterSurfaceLocation().Z;
 		}
 	}
 	return WaterBody->GetActorLocation().Z;
@@ -222,7 +302,13 @@ void AAOSMarineSnowField::Tick(float DeltaSeconds)
 	// Keep the bounds around the camera (particles themselves are world-fixed in the material).
 	Mesh->SetWorldLocation(Cam - FVector(BoxSize * 0.5f), false, nullptr, ETeleportType::TeleportPhysics);
 
-	// Camera velocity relative to the water -> motion streaks. Teleports (> 30 m/s) are ignored.
+	// Water (wave) clock shared with the GPU water mesh and the buoyancy.
+	const UWaterBodyComponent* Body = WaterBody ? WaterBody->GetWaterBodyComponent() : nullptr;
+	const float WaveTime = Body ? Body->GetWaveReferenceTime() : GetWorld()->GetTimeSeconds();
+	SnowMID->SetScalarParameterValue(AOSSnowParams::WaveTime, WaveTime);
+
+	// Camera velocity relative to the local water parcel -> motion streaks. The flakes ride the same wave
+	// orbits as the Shell, so bobbing on the swell produces no streaks. Teleports (> 30 m/s) are ignored.
 	if (bHasPrevCamera && DeltaSeconds > KINDA_SMALL_NUMBER)
 	{
 		FVector Velocity = (Cam - PrevCameraLocation) / DeltaSeconds;
@@ -230,6 +316,7 @@ void AAOSMarineSnowField::Tick(float DeltaSeconds)
 		{
 			Velocity = FVector::ZeroVector;
 		}
+		Velocity -= ComputeWaterOrbitalVelocity(Cam, WaveTime);
 		SmoothedCameraVelocity = FMath::VInterpTo(SmoothedCameraVelocity, Velocity, DeltaSeconds, VelocitySmoothing);
 	}
 	PrevCameraLocation = Cam;
