@@ -113,7 +113,11 @@ void AMicroTorpedo::Tick(float DeltaSeconds)
 		}
 	}
 
-	if (Age >= Ballistics.ArmingTime)
+	// Hit registration, every frame from the first one (also inside the arming window - a launch at
+	// point-blank range must not tunnel through the target):
+	//  1) direct impact: thin sphere sweep along the frame's path;
+	//  2) continuous proximity fuse: fat sphere sweep that only reacts to fuse targets, so a fast
+	//     needle passing BESIDE a daemon (or through its halo/tendrils) still detonates on it.
 	{
 		FCollisionQueryParams Params(SCENE_QUERY_STAT(MicroTorpedoSweep), false, this);
 		Params.AddIgnoredActor(GetOwner());
@@ -124,19 +128,24 @@ void AMicroTorpedo::Tick(float DeltaSeconds)
 		}
 
 		FHitResult Hit;
-		if (GetWorld()->SweepSingleByChannel(Hit, StartPos, Pos, FQuat::Identity, CollisionChannel,
-			FCollisionShape::MakeSphere(Ballistics.CollisionRadius), Params))
+		bool bDirect = GetWorld()->SweepSingleByChannel(Hit, StartPos, Pos, FQuat::Identity, CollisionChannel,
+			FCollisionShape::MakeSphere(Ballistics.CollisionRadius), Params);
+		if (bDirect && Hit.bStartPenetrating && !IsFuseTarget(Hit.GetActor()))
 		{
-			if (Hit.bStartPenetrating && Hit.GetActor() != TargetActor.Get())
-			{
-				PenetrationIgnores.Add(Hit.GetActor()); // born inside a volume: ignore it from now on
-			}
-			else
-			{
-				SetActorLocation(Hit.Location, false, nullptr, ETeleportType::TeleportPhysics);
-				Detonate(Hit, true);
-				return;
-			}
+			// Born inside a non-target volume (water body, trigger-like blockers): ignore it from now on.
+			PenetrationIgnores.Add(Hit.GetActor());
+			bDirect = false;
+		}
+
+		FHitResult ProxHit;
+		const bool bProx = Age >= Ballistics.ArmingTime && FindProximityHit(StartPos, Pos, Params, ProxHit);
+
+		if (bDirect || bProx)
+		{
+			const FHitResult& First = (bDirect && (!bProx || Hit.Time <= ProxHit.Time)) ? Hit : ProxHit;
+			SetActorLocation(First.bStartPenetrating ? StartPos : FVector(First.Location), false, nullptr, ETeleportType::TeleportPhysics);
+			Detonate(First, true);
+			return;
 		}
 	}
 
@@ -263,6 +272,45 @@ bool AMicroTorpedo::IntegrateStep(float H, FVector& Pos, FVector& OutFuseTarget)
 		return false;
 	}
 	return true;
+}
+
+bool AMicroTorpedo::IsFuseTarget(const AActor* Actor) const
+{
+	if (!IsValid(Actor) || Actor == GetOwner() || Actor == GetInstigator() || !Actor->CanBeDamaged())
+	{
+		return false;
+	}
+	return ProximityTargetTag.IsNone() || Actor->ActorHasTag(ProximityTargetTag);
+}
+
+bool AMicroTorpedo::FindProximityHit(const FVector& From, const FVector& To, const FCollisionQueryParams& Params, FHitResult& OutHit) const
+{
+	if (Ballistics.ProximityFuseRadius <= 0.f)
+	{
+		return false;
+	}
+	// Object-type query: returns EVERY touched object along the path (no early stop on walls).
+	FCollisionObjectQueryParams Objects;
+	Objects.AddObjectTypesToQuery(ECC_WorldDynamic);
+	Objects.AddObjectTypesToQuery(ECC_Pawn);
+	Objects.AddObjectTypesToQuery(ECC_PhysicsBody);
+
+	TArray<FHitResult> Hits;
+	if (!GetWorld()->SweepMultiByObjectType(Hits, From, To, FQuat::Identity, Objects,
+		FCollisionShape::MakeSphere(Ballistics.ProximityFuseRadius), Params))
+	{
+		return false;
+	}
+	bool bFound = false;
+	for (const FHitResult& Candidate : Hits)
+	{
+		if (IsFuseTarget(Candidate.GetActor()) && (!bFound || Candidate.Time < OutHit.Time))
+		{
+			OutHit = Candidate;
+			bFound = true;
+		}
+	}
+	return bFound;
 }
 
 void AMicroTorpedo::Detonate(const FHitResult& Hit, bool bHitSomething)
