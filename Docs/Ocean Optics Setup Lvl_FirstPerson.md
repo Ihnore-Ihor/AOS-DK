@@ -1,0 +1,114 @@
+# AOS_DK — Оптика океану та підводне освітлення (Lvl_FirstPerson, UE 5.7.4)
+
+Джерела констант: «UE5 Ocean Optics and Rendering», «Фізика хвиль океану та плавучості в UE5».
+Застосовано скриптом `Tools/aos_ocean_setup.py` (ідемпотентний, `DRY_RUN = True` — лише показати зміни).
+Рушій: 1 UU = 1 см → C_UE = C_phys × 0.01.
+
+## 0. Що з'ясовано в графах рушія (Water plugin 5.7)
+
+| Матеріал | Формула (з T3D-експорту графа) |
+|---|---|
+| Water_Material (SLW) | AbsorptionCoefficients = 1 / (Absorption.rgb × Absorption.a) [1/см]; ScatteringCoefficients = Scattering.rgb × Scattering.a / 1000 |
+| M_UnderWater_PostProcess_Volume | T = exp(−min(SceneDepth, MaxDepth) × Absorption.rgb / Absorption.a); Fog = exp(−d × Fog); Out = lerp(FogAmbient·a + FogScatter·a·Phase, SceneColor·T, Fog) |
+| Water_Underside | TIR-маска = saturate((CriticalAngleDot − dot(N,V)) / Width) |
+| BeachFoam | контактна піна = 1 − saturate(DistanceToNearestSurface / Foam Distance) × depth-mask × текстура |
+
+Причина «кольори зникають за 6 м»: дефолтний PP Absorption (25, 5, 2, a=7500) = 0.333 м⁻¹ у червоному → червоний на 6 м = 13.5 %, на 15 м = 0.7 %.
+`MI_UnderWater_PostProcess_Volume_Custom` лежить у плагіні рушія (Program Files) і на рівні не використовується. На WaterBodyOcean призначений `MI_UnderwaterPostProcess_AOS` — саме його налаштовано.
+
+## 1. Водна поверхня — MI_Water_Ocean_AOS (Jerlov II)
+
+| Параметр | Було | Стало | Обґрунтування |
+|---|---|---|---|
+| Absorption (rgb, a) | 285.7, 2222.2, 5000, 1 (Jerlov I) | 256.41, 1250, 1538.46, 1 | 1/(0.0039, 0.0008, 0.00065) см⁻¹ |
+| Scattering (rgb, a) | 0.05, 0.15, 0.25, 1 | 0.12, 0.28, 0.35, 1 | ×1/1000 → (0.00012, 0.00028, 0.00035) |
+| Anisotropy (PhaseG) | 0.75 | 0.70 | Jerlov II |
+| Water Specular / Fresnel Specular | 0.255 / 0.225 | 0.255 / 0.255 | F0 = ((1.333−1)/(1.333+1))² = 0.0204; 0.0204/0.08 |
+| Water Roughness / Fresnel Roughness | 0.02 | 0.02 | 0.01–0.03 |
+| Refraction | 1.333 | 1.333 | n морської води |
+| Critical Angle Dot | 0.225 | 0.661 | cos(48.6°), віконце Снелла 97° |
+| Critical Angle Width | 0.01 | 0.03 | м'якший край під хвилями |
+| Foam Roughness | 0.4 | 0.8 | піна 0.7–0.85 |
+| Foam Distance (DF Width) | 256 | 200 см | saturate(1 − d/Width) біля стін вежі |
+| Caustics (static switch) | — | True | Color Scale Behind Water для вигляду з палуби |
+
+Вимога для DF-піни: `r.GenerateMeshDistanceFields=True` (увімкнено). Для великих мешів вежі за потреби підняти Distance Field Resolution Scale.
+
+## 2. Каустика — M_LF_OceanCaustics_AOS / MI_LF_OceanCaustics_AOS (Light Function на DirectionalLight)
+
+```
+depth   = max(WaterZ − WorldPos.z, 0)                      WaterZ = 40 см
+mask    = saturate(depth / 50)                             відсікання надводної частини
+sun     = exp(−Kd_PAR × depth),  Kd_PAR = 0.000725 см⁻¹    (Kd 525/460 нм Jerlov II → 1 % на ~63 м)
+caustic = min(Tex(panA ± shift) RGB, Tex(panB))            Caustics_Tiling_01_HDR, період 300 см
+fade    = exp(−depth / 1100) × (1 − smoothstep(1200, 1500, depth))
+LF      = lerp(1, sun × lerp(1, lerp(0.25, 1, caustic), fade), mask)
+```
+127 інструкцій пікселя. Параметри MI: WaterZ, Kd_PAR_per_cm, CausticPeriod, ChromaticShift, CausticExtinctionDepth, CausticCutStart/End, CausticStrength, CausticFloor, CausticGain.
+Light Function рушій зводить у greyscale (dot(Color, 1/3)), тож хроматичний зсув дає лише м'яке розмиття.
+
+## 3. Підводний пост-процес — MI_UnderwaterPostProcess_AOS (геймплейний баланс)
+
+| Параметр | Було | Стало |
+|---|---|---|
+| Absorption (rgb, a) | 25, 5, 2, 7500 | 0.030, 0.0092, 0.0075, **100** (при a=100 rgb читаються в м⁻¹) |
+| Fog | 0.0002 | 0.0002 см⁻¹ |
+| Fog Ambient Color | 0.1, 0.4, 0.75, 0.25 | 0.01, 0.08, 0.18, 0.35 |
+| Fog Scatter Color | 0.5, 1, 0.75, 3 | 0.05, 0.35, 0.65, 0.6 |
+| Scattering Aniso | 0.2 | 0.70 |
+
+Червоний: −ln(0.55)/20 м = 0.030 м⁻¹. G, B = Kd Jerlov II × 0.115 (фізичне співвідношення G:B збережено).
+
+| Дистанція | Червоний | Зелений | Синій | Прозорість туману |
+|---|---|---|---|---|
+| 6 м | 84 % | 95 % | 96 % | 89 % |
+| 15 м | 64 % | 87 % | 89 % | 74 % |
+| 20 м | 55 % | 83 % | 86 % | 67 % |
+| 50 м | 22 % | 63 % | 69 % | 37 % |
+| 100 м | 5 % | 40 % | 47 % | 13 % |
+
+WaterBodyOcean → Underwater Post Process Settings: Priority 10, White Temp 5000 K, Auto Exposure Histogram, Min EV100 0, Max EV100 6.
+
+## 4. Світло й туман (актори рівня)
+
+| Актор | Параметр | Значення |
+|---|---|---|
+| DirectionalLight | Light Function Material | MI_LF_OceanCaustics_AOS |
+| | Light Function Fade Distance | 160 000 |
+| | Disabled Brightness | 1.0 |
+| | Volumetric Scattering Intensity | 5.0 (PDF 4–7) |
+| | Light Shaft Occlusion / Bloom, Cast Volumetric Shadow | On |
+| SkyLight | Volumetric Scattering Intensity | 1.0 (було 5 — рівномірне світіння туману) |
+| ExponentialHeightFog (Z = ватерлінія 40) | Fog Density | 0.05 |
+| | Fog Height Falloff | **0.001** (було 0.2 → e³² на −1600 м) |
+| | Inscattering | 0.01, 0.08, 0.18 |
+| | Max Opacity | 1.0 |
+| | Volumetric: Scattering Distribution / Extinction Scale / Distance | 0.75 / 2.0 / 6000 |
+| | Volumetric Albedo (sRGB) | 82, 223, 255 = нормоване b/(a+b) Jerlov II |
+
+LocalFogVolume не додавав: EHF із falloff 0.001 покриває стовп 1.6 км рівномірно. LFV варто ставити лише локально — навколо сигнальних вогнів вежі (g ≈ 0.8, albedo блакитний, emissive 0), щоб давати ореоли.
+
+## 5. Стратифікація за глибиною — AAOSOceanDepthController (C++)
+
+`Source/AOS_DK/Environment/Ocean/AOSOceanDepthController.h/.cpp`. Актор `AOS_OceanDepthController` уже стоїть на рівні. Працює тільки в PIE/грі; на рівні зберігаються значення епіпелагіалі.
+
+| Зона | Глибина | Сонце (DL) | SkyLight / туман / PP-амбієнт |
+|---|---|---|---|
+| Surface | над водою | база | база, AirFog-пресет |
+| Епіпелагіаль | 0–40 м | база; LF дає exp(−Kd·z) по пікселях; Vol. scatter 5·e^(−Kd z) | × e^(−0.0725·z) |
+| Мезопелагіаль | 40–150 м | вимикається між 120–150 м | × e^(−0.0725·z), → 0 до 150 м |
+| Батипелагіаль | 150–1600 м | 0 (невидиме, VSM звільнено) | 0 — лише фари, вогні вежі, Dracula-емісив |
+
+Висота поверхні береться з `GetWaterSurfaceInfoAtLocation` (з урахуванням хвиль Герстнера). Перевірено в PIE: 14.7 м → Sky 0.344; 59.7 м → Sky 0.0132; 231 м → Sun 0, Sky 0, inscattering 0.
+
+## 6. Перевірка
+
+Тест-сфери Dracula Orange / Pink на 6–24 м, захоплення камерою: зі старим PP вони стають ціан/синіми, з новим лишаються помаранчевими/рожевими до ~24 м, а далі тонуть у синьо-чорному.
+Скріншоти: `Saved/ClaudeExport/v_new_e06.png`, `v_old_e06.png`, `pie_15m.png`, `pie_70m.png`, `pie_5m_snell.png`.
+
+## 7. Відомі обмеження / що робити далі
+
+- Емісив Daemon (IdleGlow 22, ChargeGlowMax 160) під цією експозицією перепалюється в білий (ACES знебарвлює). Для читабельного кольору варто тримати емісив ≈ 2–8 і віддати «яскравість» bloom.
+- Light Function у Volumetric Fog працює в просторі світла, без world-Z, тому глибинне згасання променів додатково робить контролер.
+- Дивлячись угору на 5 м, туман у бік сонця пересвічується (Volumetric Scatter 5 + Fog Scatter). Якщо заважає — `SunVolumetricScatteringUnderwater` 3–4.
+- WaterZone 10×10 км при RT 1024 дає ≈10 м на тексель. Для мапи 1 км можна поставити Zone Extent ≈ 120 000 (Far Distance Mesh добудує горизонт).
