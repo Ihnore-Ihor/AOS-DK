@@ -14,3 +14,7 @@
 
 # 3ds Max source scenes (Content/RawArt)
 *.max filter=lfs diff=lfs merge=lfs -text
+
+# Added: models and lab reports
+*.obj filter=lfs diff=lfs merge=lfs -text
+*.docx filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,387 @@
+{
+  "asset": "SM_Breach_SomaLock",
+  "units": "cm",
+  "space": "3ds Max RH Z-up, +X traversal; UE import maps (x, y, z) -> (x, -y, z)",
+  "slots": [
+    "MS_Armor",
+    "MS_Hydraulic",
+    "MS_Seal",
+    "MS_Status"
+  ],
+  "sockets": {
+    "SOCKET_VFX_Bubbles_01": {
+      "pos": [
+        -600.0,
+        980.0,
+        330.5
+      ],
+      "x": [
+        0,
+        0,
+        1
+      ],
+      "z": [
+        -1,
+        0,
+        0
+      ]
+    },
+    "SOCKET_VFX_Spark_00": {
+      "pos": [
+        -706.0,
+        858.0,
+        -485.0
+      ],
+      "x": [
+        -0.22808577638091165,
+        -0.6082287370157644,
+        -0.7602859212697055
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_VFX_Spark_01": {
+      "pos": [
+        -699.0,
+        1020.0,
+        -226.0
+      ],
+      "x": [
+        -0.35777087639996635,
+        -0.8944271909999159,
+        -0.2683281572999747
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_VFX_Bubbles_00": {
+      "pos": [
+        -600.0,
+        890.0,
+        -300.0
+      ],
+      "x": [
+        0,
+        0,
+        1
+      ],
+      "z": [
+        -1,
+        0,
+        0
+      ]
+    },
+    "SOCKET_Light_Status_00": {
+      "pos": [
+        -468.0,
+        -163.885,
+        519.776
+      ],
+      "x": [
+        -1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Light_Status_01": {
+      "pos": [
+        -468.0,
+        -260.052,
+        478.955
+      ],
+      "x": [
+        -1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Light_Status_02": {
+      "pos": [
+        -468.0,
+        -346.663,
+        420.535
+      ],
+      "x": [
+        -1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Light_Status_03": {
+      "pos": [
+        -468.0,
+        -420.535,
+        346.663
+      ],
+      "x": [
+        -1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Light_Status_04": {
+      "pos": [
+        -468.0,
+        -478.955,
+        260.052
+      ],
+      "x": [
+        -1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Light_Status_05": {
+      "pos": [
+        -468.0,
+        -519.776,
+        163.885
+      ],
+      "x": [
+        -1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Terminal_Mount": {
+      "pos": [
+        -441.0,
+        -364.0,
+        -364.0
+      ],
+      "x": [
+        -1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Nav_In": {
+      "pos": [
+        -900.0,
+        -162.0,
+        0.0
+      ],
+      "x": [
+        1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Nav_Out": {
+      "pos": [
+        700.0,
+        -162.0,
+        0.0
+      ],
+      "x": [
+        1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    }
+  },
+  "lens": {
+    "centre_yz": [
+      -162.0,
+      0.0
+    ],
+    "radius": 248.0,
+    "diameter": 496.0,
+    "render_min_dist": 248.0,
+    "render_min_vert": [
+      -300.0,
+      -410.0,
+      -0.0
+    ],
+    "render_clearance_cm": 0.0
+  },
+  "stats": {
+    "max_units": "centimeters",
+    "max_scale": 1.0,
+    "uv_overlapping_faces": 0,
+    "parts": 268,
+    "verts": 18830,
+    "tris": 36636,
+    "mat_ids": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "bbox_min": [
+      -711.1,
+      -600.0,
+      -600.0
+    ],
+    "bbox_max": [
+      432.0,
+      1345.0,
+      609.3
+    ],
+    "ucx": [
+      {
+        "name": "UCX_SM_Breach_SomaLock_00",
+        "part": "tunnel_stave_00",
+        "verts": 8,
+        "lens_clearance_cm": 324.0
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_01",
+        "part": "tunnel_stave_01",
+        "verts": 8,
+        "lens_clearance_cm": 302.3
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_02",
+        "part": "tunnel_stave_02",
+        "verts": 8,
+        "lens_clearance_cm": 243.94
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_03",
+        "part": "tunnel_stave_03",
+        "verts": 8,
+        "lens_clearance_cm": 165.3
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_04",
+        "part": "tunnel_stave_04",
+        "verts": 8,
+        "lens_clearance_cm": 82.4
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_05",
+        "part": "tunnel_stave_05",
+        "verts": 8,
+        "lens_clearance_cm": 21.7
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_06",
+        "part": "tunnel_stave_06",
+        "verts": 8,
+        "lens_clearance_cm": 0.0
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_07",
+        "part": "tunnel_stave_07",
+        "verts": 8,
+        "lens_clearance_cm": 21.7
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_08",
+        "part": "tunnel_stave_08",
+        "verts": 8,
+        "lens_clearance_cm": 82.4
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_09",
+        "part": "tunnel_stave_09",
+        "verts": 8,
+        "lens_clearance_cm": 165.3
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_10",
+        "part": "tunnel_stave_10",
+        "verts": 8,
+        "lens_clearance_cm": 243.94
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_11",
+        "part": "tunnel_stave_11",
+        "verts": 8,
+        "lens_clearance_cm": 302.3
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_12",
+        "part": "leaf_disc16",
+        "verts": 32,
+        "lens_clearance_cm": 0.0
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_13",
+        "part": "door_pocket",
+        "verts": 8,
+        "lens_clearance_cm": 259.0
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_14",
+        "part": "rail_top",
+        "verts": 8,
+        "lens_clearance_cm": 201.72
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_15",
+        "part": "rail_bottom",
+        "verts": 8,
+        "lens_clearance_cm": 201.72
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_16",
+        "part": "actuator_top_bent",
+        "verts": 8,
+        "lens_clearance_cm": 322.7
+      },
+      {
+        "name": "UCX_SM_Breach_SomaLock_17",
+        "part": "actuator_bottom_ruptured",
+        "verts": 8,
+        "lens_clearance_cm": 322.7
+      }
+    ],
+    "ucx_count": 18,
+    "ucx_max_verts": 32,
+    "ucx_min_lens_clearance": 0.0,
+    "shell_section_half_diag": 141.4
+  }
+}

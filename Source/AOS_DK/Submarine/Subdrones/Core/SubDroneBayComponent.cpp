@@ -117,6 +117,10 @@ void USubDroneBayComponent::BindInput(UEnhancedInputComponent* InputComponent)
 
 void USubDroneBayComponent::HandleReloadInput()
 {
+	if (const AShellPawn* Shell = Cast<AShellPawn>(GetOwner()); Shell && Shell->AreControlsBlocked())
+	{
+		return;
+	}
 	RequestReload();
 }
 
@@ -174,11 +178,19 @@ bool USubDroneBayComponent::IsAtServiceStation() const
 
 void USubDroneBayComponent::HandleToggleInput()
 {
+	if (const AShellPawn* Shell = Cast<AShellPawn>(GetOwner()); Shell && Shell->AreControlsBlocked())
+	{
+		return;
+	}
 	ToggleDrones();
 }
 
 void USubDroneBayComponent::HandleAttackStarted()
 {
+	if (const AShellPawn* Shell = Cast<AShellPawn>(GetOwner()); Shell && Shell->AreControlsBlocked())
+	{
+		return;
+	}
 	SetPrimaryActionHeld(true);
 }
 

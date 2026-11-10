@@ -67,6 +67,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Energy")
 	float ApplyEnergyDamage(float Percent, FVector HitLocation, AActor* DamageCauser);
 
+	/**
+	 * Pickup / repair: adds Percent points of MaxEnergy (clamped to MaxEnergy). No-op while depleted
+	 * (the Kernel Panic recovery owns the core then). Returns the percent points actually added.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Energy")
+	float AddEnergy(float Percent);
+
 	/** Recovery: clears the depleted state and sets the energy to Fraction of MaxEnergy. */
 	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Energy")
 	void RestoreEnergy(float Fraction);

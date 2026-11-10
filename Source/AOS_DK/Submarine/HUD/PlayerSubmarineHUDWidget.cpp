@@ -446,6 +446,7 @@ void UPlayerSubmarineHUDWidget::TickAim(AShellPawn& InShell, float Dt)
 	{
 		AimTimer = AimTraceInterval;
 		bAimLocked = false;
+		AimHealth = -1.f;
 		USubDroneBayComponent* Bay = InShell.GetDroneBay();
 		if (Bay && !InShell.IsSystemsHalted())
 		{
@@ -457,6 +458,7 @@ void UPlayerSubmarineHUDWidget::TickAim(AShellPawn& InShell, float Dt)
 				if (Daemon && Daemon->IsAlive())
 				{
 					bAimLocked = true;
+					AimHealth = Daemon->GetHealthFraction();
 					AimDistanceMeters = FVector::Dist(InShell.GetActorLocation(), AimPoint) / 100.f;
 					const FVector ToTarget = Daemon->GetActorLocation() - InShell.GetActorLocation();
 					AimBearing = AOSHudMath::ClampDegrees(FMath::RadiansToDegrees(float(FMath::Atan2(ToTarget.Y, ToTarget.X))));
@@ -464,9 +466,16 @@ void UPlayerSubmarineHUDWidget::TickAim(AShellPawn& InShell, float Dt)
 			}
 		}
 	}
+	// Interactable focus (the Shell's own 30 Hz query, <= InteractRange): "[F] <ACTION>" under the reticle.
+	// Suppressed by a hostile lock so the two reads never mix.
+	FText PromptAction;
+	bool bPromptAvailable = true;
+	const bool bPrompt = !bAimLocked && !InShell.IsSystemsHalted() && !InShell.AreControlsBlocked()
+		&& InShell.GetFocusPrompt(PromptAction, bPromptAvailable);
 	if (Crosshair)
 	{
-		Crosshair->SetLock(bAimLocked, AimDistanceMeters);
+		Crosshair->SetLock(bAimLocked, AimDistanceMeters, AimHealth);
+		Crosshair->SetInteractPrompt(bPrompt, PromptAction, bPromptAvailable);
 	}
 	if (NavigationTape)
 	{

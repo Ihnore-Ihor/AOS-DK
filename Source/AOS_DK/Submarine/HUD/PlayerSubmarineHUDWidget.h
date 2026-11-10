@@ -150,6 +150,7 @@ private:
 	float AimTimer = 0.f;
 	bool bAimLocked = false;
 	float AimDistanceMeters = 0.f;
+	float AimHealth = -1.f;
 	float AimBearing = 0.f;
 	bool bWarnedLow = false;
 	bool bWarnedCritical = false;

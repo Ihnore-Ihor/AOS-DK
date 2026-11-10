@@ -1,0 +1,388 @@
+{
+  "asset": "SK_LARS_RoboticArm",
+  "units": "cm",
+  "space": "3ds Max RH Z-up; UE import maps (x, y, z) -> (x, -y, z)",
+  "bind_pose": "arm extended along +X, jaws closed",
+  "bones": [
+    {
+      "name": "Root_Bone",
+      "parent": null,
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "y": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "name": "Base_Yaw_Bone",
+      "parent": "Root_Bone",
+      "pos": [
+        0,
+        0,
+        60
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "y": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "name": "Shoulder_Pitch_Bone",
+      "parent": "Base_Yaw_Bone",
+      "pos": [
+        50,
+        0,
+        250
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "y": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "name": "Elbow_Pitch_Bone",
+      "parent": "Shoulder_Pitch_Bone",
+      "pos": [
+        670,
+        0,
+        250
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "y": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "name": "Wrist_Pitch_Bone",
+      "parent": "Elbow_Pitch_Bone",
+      "pos": [
+        1190,
+        0,
+        250
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "y": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "name": "Wrist_Roll_Bone",
+      "parent": "Wrist_Pitch_Bone",
+      "pos": [
+        1250,
+        0,
+        250
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "y": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "name": "Jaw_L_Bone",
+      "parent": "Wrist_Roll_Bone",
+      "pos": [
+        1325,
+        132,
+        250
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "y": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "name": "Jaw_R_Bone",
+      "parent": "Wrist_Roll_Bone",
+      "pos": [
+        1325,
+        -132,
+        250
+      ],
+      "x": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "y": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "name": "Shoulder_Cyl_Barrel_Bone",
+      "parent": "Base_Yaw_Bone",
+      "pos": [
+        120,
+        0,
+        110
+      ],
+      "x": [
+        0.9652263719199435,
+        0.0,
+        0.261415475728318
+      ],
+      "y": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        -0.261415475728318,
+        0.0,
+        0.9652263719199435
+      ]
+    },
+    {
+      "name": "Shoulder_Cyl_Rod_Bone",
+      "parent": "Shoulder_Pitch_Bone",
+      "pos": [
+        360,
+        0,
+        175
+      ],
+      "x": [
+        -0.9652263719199435,
+        -0.0,
+        -0.261415475728318
+      ],
+      "y": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        0.261415475728318,
+        0.0,
+        -0.9652263719199435
+      ]
+    },
+    {
+      "name": "Elbow_Cyl_Barrel_Bone",
+      "parent": "Shoulder_Pitch_Bone",
+      "pos": [
+        390,
+        0,
+        324
+      ],
+      "x": [
+        0.9979582700578467,
+        0.0,
+        0.06386932928370219
+      ],
+      "y": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        -0.06386932928370219,
+        0.0,
+        0.9979582700578467
+      ]
+    },
+    {
+      "name": "Elbow_Cyl_Rod_Bone",
+      "parent": "Elbow_Pitch_Bone",
+      "pos": [
+        640,
+        0,
+        340
+      ],
+      "x": [
+        -0.9979582700578467,
+        -0.0,
+        -0.06386932928370219
+      ],
+      "y": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        0.06386932928370219,
+        0.0,
+        -0.9979582700578467
+      ]
+    }
+  ],
+  "sockets": {
+    "SOCKET_Submarine_Mount": {
+      "bone": "Wrist_Roll_Bone",
+      "pos": [
+        1445,
+        0,
+        250
+      ],
+      "x": [
+        0,
+        0,
+        1
+      ],
+      "z": [
+        -1,
+        0,
+        0
+      ]
+    },
+    "SOCKET_Cable_Feed": {
+      "bone": "Base_Yaw_Bone",
+      "pos": [
+        -55,
+        0,
+        232
+      ],
+      "x": [
+        0,
+        0,
+        1
+      ],
+      "z": [
+        -1,
+        0,
+        0
+      ]
+    },
+    "SOCKET_Hydraulic_Leak": {
+      "bone": "Elbow_Cyl_Barrel_Bone",
+      "pos": [
+        600.5691949822057,
+        0.0,
+        337.4764284788612
+      ],
+      "x": [
+        0.9979582700578467,
+        0.0,
+        0.06386932928370219
+      ],
+      "z": [
+        -0.06386932928370219,
+        0.0,
+        0.9979582700578467
+      ]
+    }
+  },
+  "stats": {
+    "uv_overlapping_faces": 0,
+    "verts_not_single_weight": 7409,
+    "deform_test(bone|own_move|collar_move)": [
+      "Root_Bone|14.0625|5.22105",
+      "Base_Yaw_Bone|39.2475|0.0",
+      "Shoulder_Pitch_Bone|154.366|0.0",
+      "Elbow_Pitch_Bone|144.962|0.0",
+      "Wrist_Pitch_Bone|3.05609|0.0",
+      "Wrist_Roll_Bone|26.3782|0.0",
+      "Jaw_L_Bone|43.6272|0.0",
+      "Jaw_R_Bone|43.6272|0.0",
+      "Shoulder_Cyl_Barrel_Bone|54.9329|0.0",
+      "Shoulder_Cyl_Rod_Bone|3.39365|0.0",
+      "Elbow_Cyl_Barrel_Bone|54.9189|0.0",
+      "Elbow_Cyl_Rod_Bone|3.13273|0.0"
+    ],
+    "parts": 195,
+    "verts": 14814,
+    "tris": 28852,
+    "bbox_min": [
+      -178.0,
+      -152.0,
+      0.0
+    ],
+    "bbox_max": [
+      1505.0,
+      152.0,
+      360.0
+    ],
+    "leak_pos": [
+      600.57,
+      0.0,
+      337.48
+    ]
+  }
+}

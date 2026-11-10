@@ -1,0 +1,3316 @@
+{
+ "kit": "AOS_DK DeficitKit",
+ "units": "cm",
+ "space": "3ds Max RH Z-up; UE import maps (x, y, z) -> (x, -y, z)",
+ "max_file": "C:\\Users\\USER\\Documents\\Unreal Projects\\AOS_DK\\SourceArt\\CustomHero\\DeficitKit.max",
+ "fbx_dir": "C:\\Users\\USER\\Documents\\Unreal Projects\\AOS_DK\\Content\\AOS_DK_Game\\Environment\\ModularKit",
+ "uv_tile_cm": 200.0,
+ "assets": {
+  "SM_Pipe_Straight_D20": {
+   "item": 1,
+   "slots": [
+    "MS_PipePaint",
+    "MS_Galvanized",
+    "MS_SafetyPaint"
+   ],
+   "verts": 928,
+   "tris": 1792,
+   "polys": 1008,
+   "bbox_min": [
+    0.0,
+    -17.0,
+    -17.0
+   ],
+   "bbox_max": [
+    400.0,
+    17.0,
+    17.0
+   ],
+   "size": [
+    400.0,
+    34.0,
+    34.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Pipe_Straight_D20_01",
+     "verts": 32,
+     "tris": 60,
+     "centroid": [
+      200.0,
+      -0.0,
+      -0.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Flange_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Flange_B": {
+     "pos": [
+      400.0,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "top_hit",
+     "start": [
+      200,
+      0,
+      150
+     ],
+     "end": [
+      200,
+      0,
+      -150
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [],
+   "prim_flips": 0,
+   "prims": 21,
+   "cull_class": 1000,
+   "area_cm2": 49896.4,
+   "uv_overlap_faces": 0,
+   "uv_scale": 1.99372
+  },
+  "SM_Pipe_Straight_D40": {
+   "item": 1,
+   "slots": [
+    "MS_PipePaint",
+    "MS_Galvanized",
+    "MS_SafetyPaint"
+   ],
+   "verts": 1632,
+   "tris": 3136,
+   "polys": 1792,
+   "bbox_min": [
+    0.0,
+    -29.0,
+    -29.0
+   ],
+   "bbox_max": [
+    400.0,
+    29.0,
+    29.0
+   ],
+   "size": [
+    400.0,
+    58.0,
+    58.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Pipe_Straight_D40_01",
+     "verts": 32,
+     "tris": 60,
+     "centroid": [
+      200.0,
+      -0.0,
+      -0.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Flange_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Flange_B": {
+     "pos": [
+      400.0,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "top_hit",
+     "start": [
+      200,
+      0,
+      150
+     ],
+     "end": [
+      200,
+      0,
+      -150
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [],
+   "prim_flips": 0,
+   "prims": 37,
+   "cull_class": 1000,
+   "area_cm2": 104487.5,
+   "uv_overlap_faces": 0,
+   "uv_scale": 2.03469
+  },
+  "SM_Pipe_Straight_D80": {
+   "item": 1,
+   "slots": [
+    "MS_PipePaint",
+    "MS_Galvanized",
+    "MS_SafetyPaint"
+   ],
+   "verts": 2336,
+   "tris": 4480,
+   "polys": 2576,
+   "bbox_min": [
+    0.0,
+    -52.0,
+    -52.0
+   ],
+   "bbox_max": [
+    400.0,
+    52.0,
+    52.0
+   ],
+   "size": [
+    400.0,
+    104.0,
+    104.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Pipe_Straight_D80_01",
+     "verts": 32,
+     "tris": 60,
+     "centroid": [
+      200.0,
+      -0.0,
+      -0.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Flange_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Flange_B": {
+     "pos": [
+      400.0,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "top_hit",
+     "start": [
+      200,
+      0,
+      150
+     ],
+     "end": [
+      200,
+      0,
+      -150
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [],
+   "prim_flips": 0,
+   "prims": 53,
+   "cull_class": 1000,
+   "area_cm2": 218896.0,
+   "uv_overlap_faces": 0,
+   "uv_scale": 3.36663
+  },
+  "SM_Pipe_Elbow90_D40": {
+   "item": 2,
+   "slots": [
+    "MS_PipePaint",
+    "MS_Galvanized"
+   ],
+   "verts": 2064,
+   "tris": 4000,
+   "polys": 2224,
+   "bbox_min": [
+    0.0,
+    -29.0,
+    -29.0
+   ],
+   "bbox_max": [
+    129.0,
+    100.0,
+    29.0
+   ],
+   "size": [
+    129.0,
+    129.0,
+    58.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Pipe_Elbow90_D40_01",
+     "verts": 26,
+     "tris": 48,
+     "centroid": [
+      45.93,
+      2.42,
+      0.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Pipe_Elbow90_D40_02",
+     "verts": 26,
+     "tris": 48,
+     "centroid": [
+      97.58,
+      54.07,
+      0.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Flange_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Flange_B": {
+     "pos": [
+      100.0,
+      100.0,
+      0
+     ],
+     "x": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "stub_a_top",
+     "start": [
+      25.0,
+      0,
+      200
+     ],
+     "end": [
+      25.0,
+      0,
+      -200
+     ],
+     "expect_hit": true
+    },
+    {
+     "name": "inner_corner_clear",
+     "start": [
+      15.0,
+      85.0,
+      200
+     ],
+     "end": [
+      15.0,
+      85.0,
+      -200
+     ],
+     "expect_hit": false
+    }
+   ],
+   "notes": [
+    "R = 1.5 x D (60 cm) + tangent stubs 40 cm so both flange faces land on the 100 grid; 2 UCX (8-gon x 4 stations) instead of 1 to keep the bend's inner corner open"
+   ],
+   "prim_flips": 0,
+   "prims": 35,
+   "cull_class": 400,
+   "area_cm2": 48832.0,
+   "uv_overlap_faces": 0,
+   "uv_scale": 1.82652
+  },
+  "SM_Pipe_Elbow90_D80": {
+   "item": 2,
+   "slots": [
+    "MS_PipePaint",
+    "MS_Galvanized"
+   ],
+   "verts": 3168,
+   "tris": 6144,
+   "polys": 3408,
+   "bbox_min": [
+    0.0,
+    -52.0,
+    -52.0
+   ],
+   "bbox_max": [
+    252.0,
+    200.0,
+    52.0
+   ],
+   "size": [
+    252.0,
+    252.0,
+    104.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Pipe_Elbow90_D80_01",
+     "verts": 26,
+     "tris": 48,
+     "centroid": [
+      91.86,
+      4.84,
+      0.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Pipe_Elbow90_D80_02",
+     "verts": 26,
+     "tris": 48,
+     "centroid": [
+      195.16,
+      108.14,
+      0.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Flange_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Flange_B": {
+     "pos": [
+      200.0,
+      200.0,
+      0
+     ],
+     "x": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "stub_a_top",
+     "start": [
+      50.0,
+      0,
+      200
+     ],
+     "end": [
+      50.0,
+      0,
+      -200
+     ],
+     "expect_hit": true
+    },
+    {
+     "name": "inner_corner_clear",
+     "start": [
+      30.0,
+      170.0,
+      200
+     ],
+     "end": [
+      30.0,
+      170.0,
+      -200
+     ],
+     "expect_hit": false
+    }
+   ],
+   "notes": [
+    "R = 1.5 x D (120 cm) + tangent stubs 80 cm so both flange faces land on the 200 grid; 2 UCX (8-gon x 4 stations) instead of 1 to keep the bend's inner corner open"
+   ],
+   "prim_flips": 0,
+   "prims": 51,
+   "cull_class": 400,
+   "area_cm2": 187640.8,
+   "uv_overlap_faces": 0,
+   "uv_scale": 3.72546
+  },
+  "SM_Pipe_Tee_D40": {
+   "item": 3,
+   "slots": [
+    "MS_PipePaint",
+    "MS_Galvanized"
+   ],
+   "verts": 2208,
+   "tris": 4224,
+   "polys": 2448,
+   "bbox_min": [
+    0.0,
+    -29.0,
+    -29.0
+   ],
+   "bbox_max": [
+    200.0,
+    100.0,
+    29.0
+   ],
+   "size": [
+    200.0,
+    129.0,
+    58.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Pipe_Tee_D40_01",
+     "verts": 32,
+     "tris": 60,
+     "centroid": [
+      100.0,
+      -0.0,
+      -0.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Pipe_Tee_D40_02",
+     "verts": 32,
+     "tris": 60,
+     "centroid": [
+      100.0,
+      50.0,
+      -0.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Flange_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Flange_B": {
+     "pos": [
+      200.0,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Flange_C": {
+     "pos": [
+      100.0,
+      100.0,
+      0
+     ],
+     "x": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "run_top",
+     "start": [
+      50.0,
+      0,
+      200
+     ],
+     "end": [
+      50.0,
+      0,
+      -200
+     ],
+     "expect_hit": true
+    },
+    {
+     "name": "branch_top",
+     "start": [
+      100.0,
+      70.0,
+      200
+     ],
+     "end": [
+      100.0,
+      70.0,
+      -200
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Run 200 / branch face at Y 100 (grid) instead of the audit's ~160 x 80 envelope"
+   ],
+   "prim_flips": 0,
+   "prims": 53,
+   "cull_class": 400,
+   "area_cm2": 79653.5,
+   "uv_overlap_faces": 0,
+   "uv_scale": 1.88679
+  },
+  "SM_Pipe_Reducer_D80_D40": {
+   "item": 3,
+   "slots": [
+    "MS_PipePaint",
+    "MS_Galvanized"
+   ],
+   "verts": 1904,
+   "tris": 3648,
+   "polys": 2104,
+   "bbox_min": [
+    0.0,
+    -52.0,
+    -52.0
+   ],
+   "bbox_max": [
+    150.0,
+    52.0,
+    52.0
+   ],
+   "size": [
+    150.0,
+    104.0,
+    104.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Pipe_Reducer_D80_D40_01",
+     "verts": 30,
+     "tris": 56,
+     "centroid": [
+      66.67,
+      -0.0,
+      0.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Flange_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Flange_B": {
+     "pos": [
+      150.0,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "big_end_top",
+     "start": [
+      25,
+      0,
+      150
+     ],
+     "end": [
+      25,
+      0,
+      -150
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Length 150 (grid) for the audit's ~160"
+   ],
+   "prim_flips": 0,
+   "prims": 43,
+   "cull_class": 400,
+   "area_cm2": 69629.0,
+   "uv_overlap_faces": 0,
+   "uv_scale": 2.11649
+  },
+  "SM_Pipe_Hanger_Clamp": {
+   "item": 4,
+   "slots": [
+    "MS_Galvanized",
+    "MS_Rubber"
+   ],
+   "verts": 710,
+   "tris": 1352,
+   "polys": 776,
+   "bbox_min": [
+    -6.0,
+    -15.0,
+    -11.0
+   ],
+   "bbox_max": [
+    6.0,
+    15.0,
+    29.0
+   ],
+   "size": [
+    12.0,
+    30.0,
+    40.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Pipe_Hanger_Clamp_01",
+     "verts": 12,
+     "tris": 20,
+     "centroid": [
+      0.0,
+      0.0,
+      9.67
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Mount": {
+     "pos": [
+      0,
+      0,
+      29.0
+     ],
+     "x": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "z": [
+      1.0,
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "plate_hit",
+     "start": [
+      0,
+      0,
+      79.0
+     ],
+     "end": [
+      0,
+      0,
+      0
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Pivot on the pipe axis; plate at Z 29.0 (ceiling). Rotate 90 deg about X for wall mounting. Pipe runs along X, so the 30 cm span is along Y"
+   ],
+   "prim_flips": 0,
+   "prims": 19,
+   "cull_class": 60,
+   "area_cm2": 1795.0,
+   "uv_overlap_faces": 0,
+   "uv_scale": 0.335251
+  },
+  "SM_Pipe_Hanger_Clamp_D40": {
+   "item": 4,
+   "slots": [
+    "MS_Galvanized",
+    "MS_Rubber"
+   ],
+   "verts": 790,
+   "tris": 1512,
+   "polys": 856,
+   "bbox_min": [
+    -7.0,
+    -26.2,
+    -21.2
+   ],
+   "bbox_max": [
+    7.0,
+    26.2,
+    39.2
+   ],
+   "size": [
+    14.0,
+    52.4,
+    60.4
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Pipe_Hanger_Clamp_D40_01",
+     "verts": 12,
+     "tris": 20,
+     "centroid": [
+      0.0,
+      0.0,
+      13.07
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Mount": {
+     "pos": [
+      0,
+      0,
+      39.2
+     ],
+     "x": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "z": [
+      1.0,
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "plate_hit",
+     "start": [
+      0,
+      0,
+      89.2
+     ],
+     "end": [
+      0,
+      0,
+      0
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Pivot on the pipe axis; plate at Z 39.2 (ceiling). Rotate 90 deg about X for wall mounting. Pipe runs along X, so the 30 cm span is along Y"
+   ],
+   "prim_flips": 0,
+   "prims": 19,
+   "cull_class": 150,
+   "area_cm2": 3716.9,
+   "uv_overlap_faces": 0,
+   "uv_scale": 0.576626
+  },
+  "SM_Pipe_Hanger_Clamp_D80": {
+   "item": 4,
+   "slots": [
+    "MS_Galvanized",
+    "MS_Rubber"
+   ],
+   "verts": 870,
+   "tris": 1672,
+   "polys": 936,
+   "bbox_min": [
+    -9.0,
+    -47.4,
+    -41.4
+   ],
+   "bbox_max": [
+    9.0,
+    47.4,
+    59.4
+   ],
+   "size": [
+    18.0,
+    94.8,
+    100.8
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Pipe_Hanger_Clamp_D80_01",
+     "verts": 12,
+     "tris": 20,
+     "centroid": [
+      0.0,
+      0.0,
+      19.8
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Mount": {
+     "pos": [
+      0,
+      0,
+      59.4
+     ],
+     "x": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "z": [
+      1.0,
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "plate_hit",
+     "start": [
+      0,
+      0,
+      109.4
+     ],
+     "end": [
+      0,
+      0,
+      0
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Pivot on the pipe axis; plate at Z 59.4 (ceiling). Rotate 90 deg about X for wall mounting. Pipe runs along X, so the 30 cm span is along Y"
+   ],
+   "prim_flips": 0,
+   "prims": 19,
+   "cull_class": 150,
+   "area_cm2": 7990.2,
+   "uv_overlap_faces": 0,
+   "uv_scale": 1.06123
+  },
+  "SM_ServerRack_Cabinet": {
+   "item": 5,
+   "slots": [
+    "MS_DarkSteel",
+    "MS_Galvanized",
+    "MS_Rubber",
+    "MS_Status"
+   ],
+   "verts": 6604,
+   "tris": 11152,
+   "polys": 6280,
+   "bbox_min": [
+    -40.0,
+    -50.0,
+    0.0
+   ],
+   "bbox_max": [
+    40.0,
+    50.0,
+    220.0
+   ],
+   "size": [
+    80.0,
+    100.0,
+    220.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_ServerRack_Cabinet_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      0.0,
+      0.0,
+      110.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Status_00": {
+     "pos": [
+      -25.0,
+      -50.0,
+      205.5
+     ],
+     "x": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Status_01": {
+     "pos": [
+      -15.0,
+      -50.0,
+      205.5
+     ],
+     "x": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Status_02": {
+     "pos": [
+      -5.0,
+      -50.0,
+      205.5
+     ],
+     "x": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Status_03": {
+     "pos": [
+      5.0,
+      -50.0,
+      205.5
+     ],
+     "x": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Status_04": {
+     "pos": [
+      15.0,
+      -50.0,
+      205.5
+     ],
+     "x": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Status_05": {
+     "pos": [
+      25.0,
+      -50.0,
+      205.5
+     ],
+     "x": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Door_Hinge": {
+     "pos": [
+      -40.0,
+      -51.25,
+      0.0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "top_hit",
+     "start": [
+      0,
+      0,
+      400
+     ],
+     "end": [
+      0,
+      0,
+      0
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "42U = 186.7 cm of rail (Z 12-198.7); front faces Max -Y (= UE +Y); door is the separate SM_ServerRack_Cabinet_Door on SOCKET_Door_Hinge"
+   ],
+   "prim_flips": 0,
+   "prims": 514,
+   "cull_class": 400,
+   "area_cm2": 370008.7,
+   "uv_overlap_faces": 0,
+   "uv_scale": 3.36107
+  },
+  "SM_ServerRack_Cabinet_Door": {
+   "item": 5,
+   "slots": [
+    "MS_DarkSteel",
+    "MS_Galvanized"
+   ],
+   "verts": 1156,
+   "tris": 1848,
+   "polys": 984,
+   "bbox_min": [
+    -1.2,
+    -3.75,
+    9.0
+   ],
+   "bbox_max": [
+    79.5,
+    1.2,
+    198.0
+   ],
+   "size": [
+    80.7,
+    4.95,
+    189.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_ServerRack_Cabinet_Door_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      39.5,
+      -1.35,
+      103.5
+     ]
+    }
+   ],
+   "sockets": {},
+   "probes": [
+    {
+     "name": "leaf_hit",
+     "start": [
+      40,
+      -100,
+      100
+     ],
+     "end": [
+      40,
+      100,
+      100
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Pivot = hinge axis (Z up); attach to SM_ServerRack_Cabinet:SOCKET_Door_Hinge with zero rotation"
+   ],
+   "prim_flips": 0,
+   "prims": 116,
+   "cull_class": 400,
+   "area_cm2": 44634.1,
+   "uv_overlap_faces": 0,
+   "uv_scale": 1.65488
+  },
+  "SM_CableTray_Straight": {
+   "item": 7,
+   "slots": [
+    "MS_Galvanized"
+   ],
+   "verts": 960,
+   "tris": 1712,
+   "polys": 1016,
+   "bbox_min": [
+    0.0,
+    -20.0,
+    0.0
+   ],
+   "bbox_max": [
+    300.0,
+    20.0,
+    15.0
+   ],
+   "size": [
+    300.0,
+    40.0,
+    15.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_CableTray_Straight_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      150.0,
+      0.0,
+      7.5
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_End_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_End_B": {
+     "pos": [
+      300.0,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "rung_hit",
+     "start": [
+      15,
+      0,
+      100
+     ],
+     "end": [
+      15,
+      0,
+      -50
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Ladder tray per audit (300 x 40 x 15). The imported SM_CableTray_Corner is a 6-conduit bundle (~57 x 34), so SM_CableTray_ConduitRun_Straight is the run that actually mates with it"
+   ],
+   "prim_flips": 0,
+   "prims": 52,
+   "cull_class": 400,
+   "area_cm2": 36441.4,
+   "uv_overlap_faces": 0,
+   "uv_scale": 1.53005
+  },
+  "SM_CableTray_ConduitRun_Straight": {
+   "item": 7,
+   "slots": [
+    "MS_Rubber",
+    "MS_DarkSteel"
+   ],
+   "verts": 552,
+   "tris": 1008,
+   "polys": 636,
+   "bbox_min": [
+    0.0,
+    -30.3,
+    1.0
+   ],
+   "bbox_max": [
+    300.0,
+    30.3,
+    37.0
+   ],
+   "size": [
+    300.0,
+    60.6,
+    36.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_CableTray_ConduitRun_Straight_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      150.0,
+      0.0,
+      19.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_End_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_End_B": {
+     "pos": [
+      300.0,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "bundle_hit",
+     "start": [
+      100,
+      0,
+      100
+     ],
+     "end": [
+      100,
+      0,
+      -50
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Cross-section copied from SM_CableTray_Corner (6 x octagon R 8.5, Y +-20.15, Z 10.05/28.05). Corner arm ends: X-arm face at X 100 centred Y -70.2; Y-arm face at Y 100 centred X -71.1"
+   ],
+   "prim_flips": 0,
+   "prims": 24,
+   "cull_class": 400,
+   "area_cm2": 101537.9,
+   "uv_overlap_faces": 0,
+   "uv_scale": 1.92054
+  },
+  "SM_Catwalk_Grating_Module": {
+   "item": 8,
+   "slots": [
+    "MS_Galvanized",
+    "MS_DarkSteel",
+    "MS_SafetyPaint"
+   ],
+   "verts": 1160,
+   "tris": 1976,
+   "polys": 1112,
+   "bbox_min": [
+    -100.0,
+    -50.0,
+    -8.0
+   ],
+   "bbox_max": [
+    100.0,
+    50.0,
+    110.0
+   ],
+   "size": [
+    200.0,
+    100.0,
+    118.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Catwalk_Grating_Module_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      0.0,
+      0.0,
+      -4.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Catwalk_Grating_Module_02",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      0.0,
+      -47.0,
+      55.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Catwalk_Grating_Module_03",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      0.0,
+      47.0,
+      55.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Snap_A": {
+     "pos": [
+      -100,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Snap_B": {
+     "pos": [
+      100,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "deck_hit",
+     "start": [
+      30,
+      0,
+      200
+     ],
+     "end": [
+      30,
+      0,
+      -50
+     ],
+     "expect_hit": true
+    },
+    {
+     "name": "rail_plusY",
+     "start": [
+      0,
+      0,
+      80
+     ],
+     "end": [
+      0,
+      100,
+      80
+     ],
+     "expect_hit": true
+    },
+    {
+     "name": "rail_minusY",
+     "start": [
+      0,
+      0,
+      80
+     ],
+     "end": [
+      0,
+      -100,
+      80
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Pivot = deck-top centre; 200 x 100 grid; rails 110 high (UCX to 110, no step-up; set Can Character Step Up On = No on placed components)"
+   ],
+   "prim_flips": 0,
+   "prims": 86,
+   "cull_class": 400,
+   "area_cm2": 83106.7,
+   "uv_overlap_faces": 0,
+   "uv_scale": 2.78175
+  },
+  "SM_Catwalk_Grating_Module_OneRail": {
+   "item": 8,
+   "slots": [
+    "MS_Galvanized",
+    "MS_DarkSteel",
+    "MS_SafetyPaint"
+   ],
+   "verts": 908,
+   "tris": 1500,
+   "polys": 822,
+   "bbox_min": [
+    -100.0,
+    -50.0,
+    -8.0
+   ],
+   "bbox_max": [
+    100.0,
+    50.0,
+    110.0
+   ],
+   "size": [
+    200.0,
+    100.0,
+    118.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Catwalk_Grating_Module_OneRail_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      0.0,
+      0.0,
+      -4.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Catwalk_Grating_Module_OneRail_02",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      0.0,
+      47.0,
+      55.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Snap_A": {
+     "pos": [
+      -100,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Snap_B": {
+     "pos": [
+      100,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "deck_hit",
+     "start": [
+      30,
+      0,
+      200
+     ],
+     "end": [
+      30,
+      0,
+      -50
+     ],
+     "expect_hit": true
+    },
+    {
+     "name": "rail_plusY",
+     "start": [
+      0,
+      0,
+      80
+     ],
+     "end": [
+      0,
+      100,
+      80
+     ],
+     "expect_hit": true
+    },
+    {
+     "name": "rail_minusY",
+     "start": [
+      0,
+      0,
+      80
+     ],
+     "end": [
+      0,
+      -100,
+      80
+     ],
+     "expect_hit": false
+    }
+   ],
+   "notes": [
+    "Pivot = deck-top centre; 200 x 100 grid; rails 110 high (UCX to 110, no step-up; set Can Character Step Up On = No on placed components)",
+    "Single rail on Max +Y (= UE -Y) for side-by-side widening"
+   ],
+   "prim_flips": 0,
+   "prims": 79,
+   "cull_class": 400,
+   "area_cm2": 70477.5,
+   "uv_overlap_faces": 0,
+   "uv_scale": 2.1578
+  },
+  "SM_Catwalk_Stair_Module": {
+   "item": 8,
+   "slots": [
+    "MS_Galvanized",
+    "MS_DarkSteel",
+    "MS_SafetyPaint"
+   ],
+   "verts": 2296,
+   "tris": 3944,
+   "polys": 2216,
+   "bbox_min": [
+    -1.0,
+    -50.1,
+    0.0
+   ],
+   "bbox_max": [
+    301.0,
+    50.1,
+    309.48
+   ],
+   "size": [
+    302.0,
+    100.2,
+    309.48
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Catwalk_Stair_Module_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      150.0,
+      -47.0,
+      165.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Catwalk_Stair_Module_02",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      150.0,
+      47.0,
+      165.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Catwalk_Stair_Module_03",
+     "verts": 12,
+     "tris": 20,
+     "centroid": [
+      147.5,
+      0.0,
+      101.67
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Snap_Bottom": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Snap_Top": {
+     "pos": [
+      300,
+      0,
+      200
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "tread_ramp_hit",
+     "start": [
+      150,
+      0,
+      400
+     ],
+     "end": [
+      150,
+      0,
+      -50
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "10 risers x 20 / goings 30 (33.7 deg), rise 200 over 300; top tread at Z 200 meets a catwalk deck-top; ramp UCX through the nosings for smooth walking"
+   ],
+   "prim_flips": 0,
+   "prims": 162,
+   "cull_class": 1000,
+   "area_cm2": 149630.8,
+   "uv_overlap_faces": 0,
+   "uv_scale": 8.53719
+  },
+  "SM_Bulkhead_Frame_Door": {
+   "item": 9,
+   "slots": [
+    "MS_DarkSteel",
+    "MS_Galvanized",
+    "MS_Status"
+   ],
+   "verts": 1290,
+   "tris": 2484,
+   "polys": 1366,
+   "bbox_min": [
+    -8.0,
+    -110.0,
+    0.0
+   ],
+   "bbox_max": [
+    41.0,
+    110.0,
+    260.0
+   ],
+   "size": [
+    49.0,
+    220.0,
+    260.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Bulkhead_Frame_Door_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      20.0,
+      -86.0,
+      130.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Bulkhead_Frame_Door_02",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      20.0,
+      86.0,
+      130.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Bulkhead_Frame_Door_03",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      20.0,
+      0.0,
+      241.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Bulkhead_Frame_Door_04",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      20.0,
+      -56.0,
+      111.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Bulkhead_Frame_Door_05",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      20.0,
+      56.0,
+      111.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Bulkhead_Frame_Door_06",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      20.0,
+      0.0,
+      216.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Bulkhead_Frame_Door_07",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      20.0,
+      0.0,
+      5.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Bulkhead_Frame_Door_08",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      -4.0,
+      -69.0,
+      110.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Leaf_Hinge": {
+     "pos": [
+      -4.0,
+      -70.0,
+      0.0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Nav_In": {
+     "pos": [
+      -60.0,
+      0.0,
+      110.0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Nav_Out": {
+     "pos": [
+      100.0,
+      0.0,
+      110.0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Light_Status": {
+     "pos": [
+      -4.5,
+      0.0,
+      238.0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "opening_clear",
+     "start": [
+      -80,
+      0,
+      110
+     ],
+     "end": [
+      120,
+      0,
+      110
+     ],
+     "expect_hit": false
+    },
+    {
+     "name": "jamb_hit",
+     "start": [
+      -80,
+      -85,
+      110
+     ],
+     "end": [
+      120,
+      -85,
+      110
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Passage +X (Bible 3.0.2) so the 220 x 40 x 260 envelope reads 40 (X) x 220 (Y) x 260 (Z); opening 100 x 200 (sill Z 10, r 20); pivot = floor centre of the opening on the outer plane; leaf mounts on SOCKET_Leaf_Hinge"
+   ],
+   "prim_flips": 0,
+   "prims": 26,
+   "cull_class": 400,
+   "area_cm2": 172508.9,
+   "uv_overlap_faces": 0,
+   "uv_scale": 2.72211
+  },
+  "SM_Bulkhead_Door_Leaf": {
+   "item": 9,
+   "slots": [
+    "MS_DarkSteel",
+    "MS_Galvanized",
+    "MS_Rubber"
+   ],
+   "verts": 1032,
+   "tris": 1984,
+   "polys": 1116,
+   "bbox_min": [
+    -7.3,
+    -3.0,
+    4.0
+   ],
+   "bbox_max": [
+    4.0,
+    126.0,
+    216.0
+   ],
+   "size": [
+    11.3,
+    129.0,
+    212.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Bulkhead_Door_Leaf_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      -1.25,
+      70.0,
+      110.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Bulkhead_Door_Leaf_02",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      0.0,
+      5.5,
+      123.0
+     ]
+    }
+   ],
+   "sockets": {},
+   "probes": [
+    {
+     "name": "leaf_hit",
+     "start": [
+      -100.0,
+      70.0,
+      110.0
+     ],
+     "end": [
+      100.0,
+      70.0,
+      110.0
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Pivot = hinge axis (Z up); swing about Z (AOS_ArchMovable)"
+   ],
+   "prim_flips": 0,
+   "prims": 21,
+   "cull_class": 400,
+   "area_cm2": 68618.9,
+   "uv_overlap_faces": 0,
+   "uv_scale": 2.08319
+  },
+  "SM_Valve_Body_D20": {
+   "item": 10,
+   "slots": [
+    "MS_PipePaint",
+    "MS_Galvanized",
+    "MS_DarkSteel"
+   ],
+   "verts": 1382,
+   "tris": 2644,
+   "polys": 1572,
+   "bbox_min": [
+    0.0,
+    -17.0,
+    -17.0
+   ],
+   "bbox_max": [
+    50.0,
+    17.0,
+    52.0
+   ],
+   "size": [
+    50.0,
+    34.0,
+    69.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Valve_Body_D20_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      25.0,
+      0.0,
+      0.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Valve_Body_D20_02",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      25.0,
+      0.0,
+      31.5
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Flange_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Flange_B": {
+     "pos": [
+      50.0,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Wheel": {
+     "pos": [
+      25.0,
+      0.0,
+      46.0
+     ],
+     "x": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "z": [
+      1.0,
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "body_hit",
+     "start": [
+      25,
+      0,
+      150
+     ],
+     "end": [
+      25,
+      0,
+      -50
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Inline gate valve for D20 runs (face-to-face 50); SOCKET_Wheel X = +Z (wheel spin axis)"
+   ],
+   "prim_flips": 0,
+   "prims": 32,
+   "cull_class": 150,
+   "area_cm2": 11499.6,
+   "uv_overlap_faces": 0,
+   "uv_scale": 0.767839
+  },
+  "SM_Valve_Wheel": {
+   "item": 10,
+   "slots": [
+    "MS_SafetyPaint",
+    "MS_Galvanized"
+   ],
+   "verts": 582,
+   "tris": 1136,
+   "polys": 630,
+   "bbox_min": [
+    0.0,
+    -20.0,
+    -20.0
+   ],
+   "bbox_max": [
+    20.3,
+    20.0,
+    20.0
+   ],
+   "size": [
+    20.3,
+    40.0,
+    40.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Valve_Wheel_01",
+     "verts": 32,
+     "tris": 60,
+     "centroid": [
+      13.0,
+      -0.0,
+      -0.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Grip": {
+     "pos": [
+      14.0,
+      0.0,
+      20.0
+     ],
+     "x": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "z": [
+      1.0,
+      0.0,
+      0.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "face_hit",
+     "start": [
+      60.0,
+      0.0,
+      18.2
+     ],
+     "end": [
+      -40.0,
+      0.0,
+      18.2
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Rotating child: pivot = hub back face, spin axis = local +X; attach to SM_Valve_Body_D20:SOCKET_Wheel"
+   ],
+   "prim_flips": 0,
+   "prims": 8,
+   "cull_class": 150,
+   "area_cm2": 2276.3,
+   "uv_overlap_faces": 0,
+   "uv_scale": 0.549188
+  },
+  "SM_Steel_IBeam_300": {
+   "item": 11,
+   "slots": [
+    "MS_DarkSteel",
+    "MS_Galvanized"
+   ],
+   "verts": 400,
+   "tris": 724,
+   "polys": 442,
+   "bbox_min": [
+    0.0,
+    -15.0,
+    0.0
+   ],
+   "bbox_max": [
+    300.0,
+    15.0,
+    30.0
+   ],
+   "size": [
+    300.0,
+    30.0,
+    30.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Steel_IBeam_300_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      150.0,
+      0.0,
+      1.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Steel_IBeam_300_02",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      150.0,
+      0.0,
+      15.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Steel_IBeam_300_03",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      150.0,
+      0.0,
+      29.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_End_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_End_B": {
+     "pos": [
+      300.0,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "top_hit",
+     "start": [
+      100.0,
+      7.0,
+      100
+     ],
+     "end": [
+      100.0,
+      7.0,
+      -50
+     ],
+     "expect_hit": true
+    },
+    {
+     "name": "web_side_hit",
+     "start": [
+      100.0,
+      -50.0,
+      15.0
+     ],
+     "end": [
+      100.0,
+      50.0,
+      15.0
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Pivot = end A, bottom-flange centre; 30 x 30 section, 3 UCX (flanges + web)"
+   ],
+   "prim_flips": 0,
+   "prims": 19,
+   "cull_class": 400,
+   "area_cm2": 64386.5,
+   "uv_overlap_faces": 0,
+   "uv_scale": 1.65775
+  },
+  "SM_Steel_IBeam_600": {
+   "item": 11,
+   "slots": [
+    "MS_DarkSteel",
+    "MS_Galvanized"
+   ],
+   "verts": 496,
+   "tris": 900,
+   "polys": 546,
+   "bbox_min": [
+    0.0,
+    -15.0,
+    0.0
+   ],
+   "bbox_max": [
+    600.0,
+    15.0,
+    30.0
+   ],
+   "size": [
+    600.0,
+    30.0,
+    30.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Steel_IBeam_600_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      300.0,
+      0.0,
+      1.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Steel_IBeam_600_02",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      300.0,
+      0.0,
+      15.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Steel_IBeam_600_03",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      300.0,
+      0.0,
+      29.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_End_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_End_B": {
+     "pos": [
+      600.0,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "top_hit",
+     "start": [
+      200.0,
+      7.0,
+      100
+     ],
+     "end": [
+      200.0,
+      7.0,
+      -50
+     ],
+     "expect_hit": true
+    },
+    {
+     "name": "web_side_hit",
+     "start": [
+      200.0,
+      -50.0,
+      15.0
+     ],
+     "end": [
+      200.0,
+      50.0,
+      15.0
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Pivot = end A, bottom-flange centre; 30 x 30 section, 3 UCX (flanges + web)"
+   ],
+   "prim_flips": 0,
+   "prims": 23,
+   "cull_class": 1000,
+   "area_cm2": 126658.2,
+   "uv_overlap_faces": 0,
+   "uv_scale": 3.02324
+  },
+  "SM_Vent_Duct_Straight": {
+   "item": 12,
+   "slots": [
+    "MS_Galvanized"
+   ],
+   "verts": 720,
+   "tris": 1344,
+   "polys": 816,
+   "bbox_min": [
+    0.0,
+    -34.0,
+    -34.0
+   ],
+   "bbox_max": [
+    200.0,
+    34.0,
+    34.0
+   ],
+   "size": [
+    200.0,
+    68.0,
+    68.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Vent_Duct_Straight_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      100.0,
+      0.0,
+      0.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Duct_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Duct_B": {
+     "pos": [
+      200.0,
+      0,
+      0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "top_hit",
+     "start": [
+      100,
+      0,
+      150
+     ],
+     "end": [
+      100,
+      0,
+      -150
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "60 x 60 galvanised duct, flanged ends (68 x 68), pivot = end-A face centre (duct axis)"
+   ],
+   "prim_flips": 0,
+   "prims": 30,
+   "cull_class": 400,
+   "area_cm2": 103291.7,
+   "uv_overlap_faces": 0,
+   "uv_scale": 2.25274
+  },
+  "SM_Vent_Duct_Elbow": {
+   "item": 12,
+   "slots": [
+    "MS_Galvanized"
+   ],
+   "verts": 776,
+   "tris": 1456,
+   "polys": 872,
+   "bbox_min": [
+    0.0,
+    -34.0,
+    -34.0
+   ],
+   "bbox_max": [
+    134.0,
+    100.0,
+    34.0
+   ],
+   "size": [
+    134.0,
+    134.0,
+    68.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Vent_Duct_Elbow_01",
+     "verts": 16,
+     "tris": 24,
+     "centroid": [
+      46.35,
+      5.54,
+      0.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Vent_Duct_Elbow_02",
+     "verts": 16,
+     "tris": 24,
+     "centroid": [
+      94.46,
+      53.65,
+      0.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Duct_A": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Duct_B": {
+     "pos": [
+      100.0,
+      100.0,
+      0
+     ],
+     "x": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "stub_top",
+     "start": [
+      20,
+      0,
+      150
+     ],
+     "end": [
+      20,
+      0,
+      -150
+     ],
+     "expect_hit": true
+    },
+    {
+     "name": "inner_corner_clear",
+     "start": [
+      15,
+      85,
+      150
+     ],
+     "end": [
+      15,
+      85,
+      -150
+     ],
+     "expect_hit": false
+    }
+   ],
+   "notes": [
+    "Centre-line R 60 + 40 stubs so both faces land on the 100 grid; 2 UCX"
+   ],
+   "prim_flips": 0,
+   "prims": 27,
+   "cull_class": 400,
+   "area_cm2": 88116.7,
+   "uv_overlap_faces": 0,
+   "uv_scale": 1.98607
+  },
+  "SM_Concrete_Arch_Brutalist": {
+   "item": 13,
+   "slots": [
+    "MS_Concrete"
+   ],
+   "verts": 232,
+   "tris": 460,
+   "polys": 226,
+   "bbox_min": [
+    0.0,
+    -300.0,
+    0.0
+   ],
+   "bbox_max": [
+    80.0,
+    300.0,
+    500.0
+   ],
+   "size": [
+    80.0,
+    600.0,
+    500.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Concrete_Arch_Brutalist_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      40.0,
+      -250.0,
+      125.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Concrete_Arch_Brutalist_02",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      40.0,
+      250.0,
+      125.0
+     ]
+    },
+    {
+     "name": "UCX_SM_Concrete_Arch_Brutalist_03",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      40.0,
+      -248.5,
+      294.43
+     ]
+    },
+    {
+     "name": "UCX_SM_Concrete_Arch_Brutalist_04",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      40.0,
+      -236.73,
+      389.43
+     ]
+    },
+    {
+     "name": "UCX_SM_Concrete_Arch_Brutalist_05",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      40.0,
+      -165.36,
+      454.18
+     ]
+    },
+    {
+     "name": "UCX_SM_Concrete_Arch_Brutalist_06",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      40.0,
+      -51.01,
+      472.61
+     ]
+    },
+    {
+     "name": "UCX_SM_Concrete_Arch_Brutalist_07",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      40.0,
+      51.01,
+      472.61
+     ]
+    },
+    {
+     "name": "UCX_SM_Concrete_Arch_Brutalist_08",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      40.0,
+      165.36,
+      454.18
+     ]
+    },
+    {
+     "name": "UCX_SM_Concrete_Arch_Brutalist_09",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      40.0,
+      236.73,
+      389.43
+     ]
+    },
+    {
+     "name": "UCX_SM_Concrete_Arch_Brutalist_10",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      40.0,
+      248.5,
+      294.43
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Nav_In": {
+     "pos": [
+      -60.0,
+      0.0,
+      225.0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Nav_Out": {
+     "pos": [
+      140.0,
+      0.0,
+      225.0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "opening_clear",
+     "start": [
+      -100,
+      0,
+      200
+     ],
+     "end": [
+      180,
+      0,
+      200
+     ],
+     "expect_hit": false
+    },
+    {
+     "name": "crown_clear_edge",
+     "start": [
+      -100,
+      0,
+      440
+     ],
+     "end": [
+      180,
+      0,
+      440
+     ],
+     "expect_hit": false
+    },
+    {
+     "name": "pier_hit",
+     "start": [
+      40,
+      250,
+      700
+     ],
+     "end": [
+      40,
+      250,
+      -50
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "Passage +X: 600 x 80 x 500 envelope reads 80 (X) x 600 (Y) x 500 (Z); opening 400 wide, semicircular head R 200, crown Z 450; 3 cm chamfers; 10 UCX (2 piers + 8 tangent crown slices)"
+   ],
+   "prim_flips": 0,
+   "prims": 1,
+   "cull_class": 1000,
+   "area_cm2": 499282.6,
+   "uv_overlap_faces": 0,
+   "uv_scale": 5.59821
+  },
+  "SM_Stairs_Concrete_Brutalist": {
+   "item": 13,
+   "slots": [
+    "MS_Concrete",
+    "MS_Galvanized"
+   ],
+   "verts": 408,
+   "tris": 748,
+   "polys": 442,
+   "bbox_min": [
+    0.0,
+    -80.0,
+    0.0
+   ],
+   "bbox_max": [
+    316.0,
+    80.0,
+    150.0
+   ],
+   "size": [
+    316.0,
+    160.0,
+    150.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_Stairs_Concrete_Brutalist_01",
+     "verts": 10,
+     "tris": 16,
+     "centroid": [
+      182.58,
+      0.0,
+      63.33
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Snap_Bottom": {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "x": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Snap_Top": {
+     "pos": [
+      316.0,
+      0,
+      150.0
+     ],
+     "x": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "ramp_hit",
+     "start": [
+      158.0,
+      0,
+      400
+     ],
+     "end": [
+      158.0,
+      0,
+      -50
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "9 risers x 16.7 / goings 35.1 cast-slab steps (board-joint grooves from the stacked chamfers) + galvanised nosing strips; pivot = foot centre, rises to +X; 1 ramp UCX"
+   ],
+   "prim_flips": 0,
+   "prims": 17,
+   "cull_class": 400,
+   "area_cm2": 607695.8,
+   "uv_overlap_faces": 0,
+   "uv_scale": 4.23562
+  },
+  "SM_ServerRack_Mega": {
+   "item": 6,
+   "slots": [
+    "MS_DarkSteel",
+    "MS_Galvanized",
+    "MS_PipePaint",
+    "MS_Status"
+   ],
+   "verts": 32300,
+   "tris": 55220,
+   "polys": 30998,
+   "bbox_min": [
+    -200.0,
+    -60.0,
+    0.0
+   ],
+   "bbox_max": [
+    200.0,
+    60.0,
+    600.0
+   ],
+   "size": [
+    400.0,
+    120.0,
+    600.0
+   ],
+   "ucx": [
+    {
+     "name": "UCX_SM_ServerRack_Mega_01",
+     "verts": 8,
+     "tris": 12,
+     "centroid": [
+      0.0,
+      0.0,
+      300.0
+     ]
+    }
+   ],
+   "sockets": {
+    "SOCKET_Light_00": {
+     "pos": [
+      -160.0,
+      -60.0,
+      592.0
+     ],
+     "x": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Light_01": {
+     "pos": [
+      -80.0,
+      -60.0,
+      592.0
+     ],
+     "x": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Light_02": {
+     "pos": [
+      0.0,
+      -60.0,
+      592.0
+     ],
+     "x": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Light_03": {
+     "pos": [
+      80.0,
+      -60.0,
+      592.0
+     ],
+     "x": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    "SOCKET_Light_04": {
+     "pos": [
+      160.0,
+      -60.0,
+      592.0
+     ],
+     "x": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "z": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    }
+   },
+   "probes": [
+    {
+     "name": "front_hit",
+     "start": [
+      0,
+      -300,
+      300
+     ],
+     "end": [
+      0,
+      0,
+      300
+     ],
+     "expect_hit": true
+    }
+   ],
+   "notes": [
+    "5 bays x 15 chassis x 10 blade sleds (750 sleds, emissive LEDs on MS_Status); 1 UCX box"
+   ],
+   "prim_flips": 0,
+   "prims": 2345,
+   "cull_class": 1000,
+   "area_cm2": 2199107.7,
+   "uv_overlap_faces": 0,
+   "uv_scale": 9.452
+  }
+ }
+}

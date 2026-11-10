@@ -166,6 +166,23 @@ float UShellEnergyComponent::ApplyEnergyDamage(float Percent, FVector HitLocatio
 	return LostPercent;
 }
 
+float UShellEnergyComponent::AddEnergy(float Percent)
+{
+	if (bDepleted || Percent <= 0.f || MaxEnergy <= 0.f)
+	{
+		return 0.f;
+	}
+	const float OldEnergy = Energy;
+	Energy = FMath::Min(MaxEnergy, Energy + Percent * MaxEnergy * 0.01f);
+	const float AddedPercent = (Energy - OldEnergy) / (MaxEnergy * 0.01f);
+	if (AddedPercent > 0.f)
+	{
+		LastBroadcastEnergy = Energy;
+		OnEnergyChanged.Broadcast(Energy, MaxEnergy);
+	}
+	return AddedPercent;
+}
+
 void UShellEnergyComponent::Deplete()
 {
 	if (bDepleted)

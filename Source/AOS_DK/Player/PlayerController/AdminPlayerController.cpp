@@ -3,6 +3,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "AOS_DK/Core/Interfaces/Interactions/Interactable.h"
+#include "AOS_DK/Player/AdminCharacter.h"
 
 AAdminPlayerController::AAdminPlayerController()
 {
@@ -46,8 +47,46 @@ void AAdminPlayerController::TogglePause()
 	}
 }
 
+bool AAdminPlayerController::IsOnFoot() const
+{
+	const APawn* ControlledPawn = GetPawn();
+	return ControlledPawn && ControlledPawn->IsA<AAdminCharacter>();
+}
+
+void AAdminPlayerController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+	if (!IsOnFoot())
+	{
+		SuppressHint();
+	}
+	else if (CurrentInteractable)
+	{
+		ShowHint(); // back on foot next to something interactable
+	}
+}
+
+void AAdminPlayerController::SuppressHint()
+{
+	if (CachedHintWidget)
+	{
+		OnHintStateChanged(false);
+		CachedHintWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
 void AAdminPlayerController::ShowHint()
 {
+	// Every caller (C++ focus change, Blueprints, dock flow) goes through here: no typing hint inside the Shell.
+	if (!IsOnFoot())
+	{
+		SuppressHint();
+		return;
+	}
+	if (CachedHintWidget && CachedHintWidget->GetVisibility() == ESlateVisibility::Collapsed)
+	{
+		CachedHintWidget->SetVisibility(ESlateVisibility::Hidden); // initial state; OnHintStateChanged reveals it
+	}
 	if (!CachedHintWidget && HintWidgetClass)
 	{
 		CachedHintWidget = CreateWidget<UUserWidget>(this, HintWidgetClass);

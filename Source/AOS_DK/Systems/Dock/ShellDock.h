@@ -8,6 +8,8 @@
 class UBoxComponent;
 class USceneComponent;
 class AShellPawn;
+class AAdminCharacter;
+class ALARSDockArm;
 
 
 UCLASS()
@@ -19,6 +21,7 @@ public:
 	AShellDock();
 
 	virtual void Interact_Implementation(AActor* InstigatorActor) override;
+	virtual void GetInteractPrompt_Implementation(AActor* InstigatorActor, FText& OutAction, bool& bOutAvailable) override;
 
 	AShellPawn* GetLinkedSubmarine() const { return LinkedSubmarine; }
 
@@ -31,6 +34,12 @@ public:
 	 * the walking character (re-possessed), the Shell is returned to its berth with its base charge.
 	 */
 	void RecoverShell(AShellPawn* Shell);
+
+	/** Called by the LARS arm once the Shell hangs in the cradle again: the pilot steps out onto the pier on foot. */
+	void HandleLARSRecoveryComplete(AShellPawn* Shell);
+
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Dock")
+	ALARSDockArm* GetLARSArm() const { return LARSArm; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -56,7 +65,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Dock")
 	TObjectPtr<AShellPawn> LinkedSubmarine;
 
+	/** Launch-and-recovery arm (auto-resolved). With an arm, boarding lowers the Shell into the water and docking lifts it out. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Dock")
+	TObjectPtr<ALARSDockArm> LARSArm;
+
 private:
+	void BoardShell(AAdminCharacter* Admin);
+	void DisembarkPilot(AShellPawn* Shell);
+
 	FTransform CapturedParking = FTransform::Identity;
 	bool bHasCapturedParking = false;
 };

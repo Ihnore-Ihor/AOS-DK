@@ -11,6 +11,7 @@ class UStaticMeshComponent;
 class UCameraComponent;
 class USubDroneBayComponent;
 class UShellEnergyComponent;
+class UAOSFluidPhysicsComponent;
 class UPlayerSubmarineHUDWidget;
 class ULightComponent;
 class UPointLightComponent;
@@ -21,18 +22,6 @@ class APlayerController;
 class UInputAction;
 class UInputMappingContext;
 struct FInputActionValue;
-
-// Analytical representation of a Gerstner Wave harmonic
-struct FGerstnerHarmonic
-{
-	float Amplitude;
-	float K; // Wave number
-	float Omega; // Angular frequency
-	FVector2D Direction;
-	float PhaseOffset;
-
-	FGerstnerHarmonic(float InA, float InWavelength, float AngleDeg, float InPhase);
-};
 
 UCLASS()
 class AOS_DK_API AShellPawn : public APawn, public IInteractable
@@ -50,7 +39,8 @@ public:
 
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
-	float GetOceanSurfaceZ() const { return OceanSurfaceZ; }
+	/** Mean sea level, owned by the fluid physics component. */
+	float GetOceanSurfaceZ() const;
 	USubDroneBayComponent* GetDroneBay() const { return DroneBay; }
 
 	// --- Energy / HUD telemetry -------------------------------------------------------------------
@@ -59,6 +49,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "AOS_DK|Shell")
 	UPlayerSubmarineHUDWidget* GetCockpitHUD() const { return CockpitHUD; }
+
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Shell")
+	UAOSFluidPhysicsComponent* GetFluidPhysics() const { return FluidPhysics; }
 
 	/** Depth below the mean sea level (OceanSurfaceZ), metres, >= 0. */
 	UFUNCTION(BlueprintPure, Category = "AOS_DK|Shell")
@@ -90,8 +83,47 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Shell")
 	void PushTerminalLog(const FString& Source, const FString& Message, EAOSHudLogSeverity Severity = EAOSHudLogSeverity::Info);
 
+	/**
+	 * Locks / unlocks the pilot's 6DOF control (thrust, ballast, steering, gyro, boost, drone bay, interact) for
+	 * scripted sequences such as the transit shafts. Locking zeroes every pending input and recalls the drones.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Shell")
+	void SetBlockControls(bool bBlock);
+
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Shell")
+	bool AreControlsBlocked() const { return bControlsBlocked; }
+
+	// --- [F] interaction focus ----------------------------------------------------------------------
+	/** Interactable under the reticle (pickup, terminal, dock), refreshed at InteractQueryRate; [F] acts on it. */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Shell|Interaction")
+	AActor* GetInteractFocus() const { return InteractFocus.Get(); }
+
+	/** Reticle prompt of the focus ("SALVAGE ENERGY (+25%)" / "FULL"); false = nothing in focus. */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Shell|Interaction")
+	bool GetFocusPrompt(FText& OutAction, bool& bOutAvailable) const;
+
 	/** Called by the dock at the end of the recovery: berth transform + restored base charge. */
 	void FinishRecovery(const FTransform& ParkingTransform);
+
+	// --- LARS cradle (dock arm) ---------------------------------------------------------------------
+	/** The Shell is carried by the LARS arm: kinematic (no fluid forces), pilot controls locked, cockpit HUD deferred. */
+	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Shell|LARS")
+	void EnterLARSCradle();
+
+	/** The jaws let go: physics + fluid forces back on (controls stay locked until GrantPilotControl). */
+	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Shell|LARS")
+	void LeaveLARSCradle();
+
+	/** End of the LARS launch: 6DOF control and the cockpit HUD come online. */
+	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Shell|LARS")
+	void GrantPilotControl();
+
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Shell|LARS")
+	bool IsInLARSCradle() const { return bInLARSCradle; }
+
+	/** Shows (binds, telemetry live this frame) / hides the cockpit HUD, e.g. while an external camera is in use. */
+	UFUNCTION(BlueprintCallable, Category = "AOS_DK|Shell|HUD")
+	void SetCockpitHUDVisible(bool bVisible);
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -106,6 +138,10 @@ protected:
 	/** Dual-Core drone bay: spawns module drones, routes IA_Sub_DroneToggle / IA_Sub_DroneAttack. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<USubDroneBayComponent> DroneBay;
+
+	/** Water interaction engine: Gerstner sea state, drag, flotation (vehicle response model, stepped from Tick). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<UAOSFluidPhysicsComponent> FluidPhysics;
 
 	/** Core energy = hull integrity + power budget. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -139,6 +175,19 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "AOS_DK|Input")
 	TObjectPtr<UInputAction> InteractAction;
+
+	//~ [F] interaction focus
+	/** Reach of the reticle interaction query from the camera. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Interaction", meta = (ClampMin = "100", Units = "cm"))
+	float InteractRange = 800.f;
+
+	/** Sweep radius for query-only focus volumes (pickups): aim forgiveness on top of the volume itself. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Interaction", meta = (ClampMin = "0", Units = "cm"))
+	float InteractAimRadius = 25.f;
+
+	/** Query rate of the interaction focus (matches the HUD aim trace). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Interaction", meta = (ClampMin = "1", ClampMax = "120", Units = "Hz"))
+	float InteractQueryRate = 30.f;
 
 	/** IA_Sub_Boost (hold): thrust multiplier - the only movement mode that costs energy. */
 	UPROPERTY(EditDefaultsOnly, Category = "AOS_DK|Input")
@@ -181,6 +230,27 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Energy|Recovery", meta = (ClampMin = "0"))
 	float HaltedSinkAcceleration = 45.f;
 
+	//~ Headlight anti-glare: proximity auto-dimming (the lamp "auto-iris" of a work-class ROV)
+	/**
+	 * Beyond this range ahead of the lamps the headlights run at full power. Closer to a surface the power follows
+	 * (d / BeamFullPowerDistance)^2, i.e. the illuminance on the surface the beams hit stays capped at the value it has at
+	 * this range, instead of growing with 1/d^2 into a 7-stop hot spot the auto-exposure cannot hold. 0 = off.
+	 */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Lights|AntiGlare", meta = (ClampMin = "0", Units = "cm"))
+	float BeamFullPowerDistance = 1200.f;
+
+	/** Floor of the auto-dimming (fraction of the full power) right against a wall. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Lights|AntiGlare", meta = (ClampMin = "0.01", ClampMax = "1"))
+	float MinBeamDimming = 0.05f;
+
+	/** Log-space slew of the dimming, 1/s (no visible pumping between the 30 Hz probes). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Lights|AntiGlare", meta = (ClampMin = "0.1"))
+	float BeamDimmingSpeed = 5.f;
+
+	/** Radius of the probe swept along each beam axis (a thin pillar does not dim the lamps). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Lights|AntiGlare", meta = (ClampMin = "0", Units = "cm"))
+	float BeamProbeRadius = 30.f;
+
 	/** Main lights die out within this time, then only the red emergency strobe remains. */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Energy|Recovery", meta = (ClampMin = "0.1", Units = "s"))
 	float EmergencyLightDecayTime = 1.8f;
@@ -212,10 +282,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "AOS_DK|HUD")
 	int32 HUDZOrder = -10;
 
-	//~ Environment
-	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics|Water")
-	float OceanSurfaceZ = 0.f;
-
 	//~ Propulsion Configuration
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics|Thrust")
 	float ForwardThrust = 1500.f; // Acceleration in cm/s^2 (approx 1.5G)
@@ -246,27 +312,6 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics|Ballast")
 	float BallastChangeSpeed = 3.5f;
 
-	//~ Hydrodynamics (Morison Equation parameters)
-	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics|Hydrodynamics")
-	float LinearDrag = 1.5f; // Velocity decay multiplier
-
-	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics|Hydrodynamics")
-	float QuadraticDrag = 0.001f; // High-speed resistance
-
-	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics|Hydrodynamics")
-	float AngularDrag = 2.5f; // Braking for rotation
-
-	// Metacentric restoring force (keeps sub upright naturally)
-	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics|Hydrodynamics")
-	float RestoringStiffness = 4.0f;
-
-	// Docking floatation characteristics
-	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics|Hydrodynamics")
-	float DockFlotationStiffness = 5.0f; // Spring force matching the wave
-
-	UPROPERTY(EditAnywhere, Category = "AOS_DK|Physics|Hydrodynamics")
-	float DockFlotationDamping = 2.0f; // Prevents infinite bouncing
-
 private:
 	void ApplyThrust(const FInputActionValue& Value);
 	void ResetThrust(const FInputActionValue& Value);
@@ -284,24 +329,30 @@ private:
 	void ExecuteRecovery();
 	AShellDock* ResolveHomeDock();
 	void ShowCockpitHUD(APlayerController* PC);
+	/** Creates + adds the HUD widget collapsed (no first-show hitch when the camera enters the cockpit). */
+	UPlayerSubmarineHUDWidget* EnsureCockpitHUD(APlayerController* PC);
 	void HideCockpitHUD();
 	void CacheLights();
 	void SetLightsLevel(float Level, bool bEmergencyRed);
 	void UpdateLights(float DeltaTime);
+	/** 30 Hz beam-axis probes -> smoothed HeadlightDim -> lamp intensities. */
+	void UpdateHeadlightDimming(float DeltaTime);
+	bool IsHeadlight(const ULightComponent* Light) const;
 	void UpdateEnergyLoads();
 	void UpdateCameraGlitch(float DeltaTime);
 	/** Hands the lens back to the level post-process (no leftover fringe / grain). */
 	void ResetCameraPostProcess();
 	void SpawnHullHitFX(const FVector& Location, const FVector& Normal);
 
-	void InitializeWaves();
-	void EvaluateWaveKinematics(const FVector& Location, float Time, float& OutSurfaceZ, FVector& OutFluidVel, FVector& OutWaveNormal);
 	void UpdateHydrodynamics(float DeltaTime);
+
+	void UpdateInteractFocus(float DeltaTime);
+	/** Visibility trace (occluders, blocking interactables) + object sweep for query-only focus volumes; nearest wins. */
+	AActor* QueryInteractFocus() const;
+	void RefreshFocusPrompt();
 
 	UPROPERTY()
 	TObjectPtr<AController> CachedController;
-
-	TArray<FGerstnerHarmonic> WaveHarmonics;
 
 	float TargetBallastForce = 0.f;
 	float CurrentBallastForce = 0.f;
@@ -318,15 +369,25 @@ private:
 	// --- Halt / recovery ---------------------------------------------------------------------------
 	bool bSystemsHalted = false;
 	bool bRecoveryFading = false;
+	bool bControlsBlocked = false;
+	bool bInLARSCradle = false;
 	float HaltElapsed = 0.f;
 	float CameraGlitch = 0.f;
 	float LightsLevel = 0.f;
+	float HeadlightDim = 1.f;
+	float HeadlightDimTarget = 1.f;
+	float BeamProbeTimer = 0.f;
 	FTimerHandle RecoveryTimer;
 	TWeakObjectPtr<APlayerController> RecoveryController;
 	TWeakObjectPtr<AShellDock> HomeDock;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UPlayerSubmarineHUDWidget> CockpitHUD;
+
+	TWeakObjectPtr<AActor> InteractFocus;
+	float InteractQueryTimer = 0.f;
+	FText FocusAction;
+	bool bFocusAvailable = false;
 
 	struct FCachedLight
 	{

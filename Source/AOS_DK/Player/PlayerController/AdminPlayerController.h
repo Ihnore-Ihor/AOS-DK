@@ -18,15 +18,23 @@ public:
 	
 	void TryInteract();
 
+	/** Interactable found by the 10 Hz view trace / overlap check (nullptr while interaction is locked). */
+	AActor* GetCurrentInteractable() const { return CurrentInteractable; }
+
 	UFUNCTION(BlueprintCallable, Category = "AOS_DK|UI")
 	void ShowHint();
 
 	UFUNCTION(BlueprintCallable, Category = "AOS_DK|UI")
 	void HideHint();
 
+	/** The legacy top-left typing hint (W_InteractHint) is an on-foot UI: true only while an AAdminCharacter is possessed. */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|UI")
+	bool IsOnFoot() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
+	virtual void OnPossess(APawn* InPawn) override;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOS_DK|Input")
 	TObjectPtr<UInputAction> PauseAction;
@@ -45,6 +53,8 @@ private:
 	void TogglePause();
 	void CheckInteractable();
 	void SetCurrentInteractable(AActor* NewInteractable);
+	/** Erase + collapse the hint widget (inside the Shell the cockpit reticle prompt is the only interaction UI). */
+	void SuppressHint();
 
 	UPROPERTY()
 	TObjectPtr<AActor> CurrentInteractable;

@@ -8,6 +8,7 @@
 #include "TimerManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "AOS_DK/Player/PlayerController/AdminPlayerController.h"
+#include "LARS/LARSDockArm.h"
 
 AShellDock::AShellDock()
 {
@@ -38,6 +39,10 @@ void AShellDock::BeginPlay()
 	{
 		LinkedSubmarine = Cast<AShellPawn>(UGameplayStatics::GetActorOfClass(GetWorld(), AShellPawn::StaticClass()));
 	}
+	if (!LARSArm)
+	{
+		LARSArm = Cast<ALARSDockArm>(UGameplayStatics::GetActorOfClass(GetWorld(), ALARSDockArm::StaticClass()));
+	}
 	if (LinkedSubmarine)
 	{
 		// The Shell starts the level moored at its berth: remember that pose for recoveries.
@@ -49,6 +54,10 @@ void AShellDock::BeginPlay()
 
 FTransform AShellDock::GetParkingTransform() const
 {
+	if (LARSArm)
+	{
+		return LARSArm->GetHoldTransform();   // the berth is the arm's cradle, above the waves
+	}
 	if (bUseParkingPoint || !bHasCapturedParking)
 	{
 		return FTransform(ParkingPoint->GetComponentRotation(), ParkingPoint->GetComponentLocation());
@@ -95,6 +104,10 @@ void AShellDock::RecoverShell(AShellPawn* Shell)
 
 	// 2) Shell back to its berth with the base charge.
 	Shell->FinishRecovery(GetParkingTransform());
+	if (LARSArm)
+	{
+		LARSArm->SnapToHold(Shell);   // straight back into the jaws, out of the water
+	}
 
 	if (AAdminPlayerController* AdminPC = Cast<AAdminPlayerController>(PC))
 	{
@@ -102,27 +115,83 @@ void AShellDock::RecoverShell(AShellPawn* Shell)
 	}
 }
 
+void AShellDock::GetInteractPrompt_Implementation(AActor* InstigatorActor, FText& OutAction, bool& bOutAvailable)
+{
+	const bool bFromShell = InstigatorActor && InstigatorActor->IsA<AShellPawn>();
+	bOutAvailable = true;
+	OutAction = bFromShell
+		? NSLOCTEXT("AOSDock", "Disembark", "DISEMBARK")
+		: NSLOCTEXT("AOSDock", "Board", "BOARD SHELL");
+	if (LARSArm)
+	{
+		if (LARSArm->IsBusy())
+		{
+			OutAction = NSLOCTEXT("AOSDock", "LarsBusy", "LARS BUSY");
+			bOutAvailable = false;
+		}
+		else
+		{
+			bOutAvailable = bFromShell ? LARSArm->CanRecover() : LARSArm->IsHoldingShell();
+		}
+	}
+}
+
+void AShellDock::HandleLARSRecoveryComplete(AShellPawn* Shell)
+{
+	DisembarkPilot(Shell);
+}
+
 void AShellDock::Interact_Implementation(AActor* InstigatorActor)
 {
-    //~ Посадка в субмарину
     if (AAdminCharacter* Admin = Cast<AAdminCharacter>(InstigatorActor))
     {
-        if (!LinkedSubmarine) return;
+        BoardShell(Admin);
+    }
+    else if (AShellPawn* Shell = Cast<AShellPawn>(InstigatorActor))
+    {
+        if (LARSArm)
+        {
+            // Docking with the LARS: align -> capture -> lift; the pilot steps out when the arm reports back.
+            if (LARSArm->CanRecover())
+            {
+                LARSArm->BeginRecovery(Shell, this);
+            }
+            return;
+        }
+        DisembarkPilot(Shell);
+    }
+}
+
+void AShellDock::BoardShell(AAdminCharacter* Admin)
+{
+    //~ Посадка в субмарину
+    {
+        if (!LinkedSubmarine || !Admin) return;
+        if (LARSArm && !LARSArm->IsHoldingShell()) return;   // the Shell is not in the cradle
 
         AAdminPlayerController* AdminPC = Cast<AAdminPlayerController>(Admin->GetController());
         if (!AdminPC) return;
 
         AdminPC->SetInteractLocked(true);
         Admin->GetCharacterMovement()->SetMovementMode(MOVE_None);
-        AdminPC->SetViewTargetWithBlend(LinkedSubmarine, 1.0f);
+
+        // LARS: blend out to the pier's cinematic LaunchCam; otherwise straight into the cockpit.
+        float BlendTime = 1.0f;
+        const bool bCinematic = LARSArm && LARSArm->BeginCinematic(AdminPC, BlendTime);
+        if (!bCinematic)
+        {
+            BlendTime = 1.0f;
+            AdminPC->SetViewTargetWithBlend(LinkedSubmarine, BlendTime);
+        }
 
         // Безпечні слабкі вказівники для таймера
         TWeakObjectPtr<AAdminPlayerController> WeakPC = AdminPC;
         TWeakObjectPtr<AAdminCharacter> WeakAdmin = Admin;
         TWeakObjectPtr<AShellPawn> WeakSub = LinkedSubmarine;
+        TWeakObjectPtr<ALARSDockArm> WeakArm = LARSArm;
 
         FTimerHandle BlendTimer;
-        GetWorld()->GetTimerManager().SetTimer(BlendTimer, [WeakPC, WeakAdmin, WeakSub]()
+        GetWorld()->GetTimerManager().SetTimer(BlendTimer, [WeakPC, WeakAdmin, WeakSub, WeakArm, bCinematic]()
         {
             // Перевіряємо валідність об'єктів перед зверненням
             if (!WeakPC.IsValid() || !WeakAdmin.IsValid() || !WeakSub.IsValid())
@@ -140,7 +209,14 @@ void AShellDock::Interact_Implementation(AActor* InstigatorActor)
 
             FRotator CamRot = PC->PlayerCameraManager ? PC->PlayerCameraManager->GetCameraRotation() : FRotator::ZeroRotator;
 
+            // During the cinematic the possess must not snap the view to the Shell (the arm hands it over later).
+            const bool bAutoCam = PC->bAutoManageActiveCameraTarget;
+            if (bCinematic)
+            {
+                PC->bAutoManageActiveCameraTarget = false;
+            }
             PC->Possess(Sub);
+            PC->bAutoManageActiveCameraTarget = bAutoCam;
             PC->SetControlRotation(CamRot);
 
             AdminChar->AttachToComponent(Sub->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
@@ -150,10 +226,20 @@ void AShellDock::Interact_Implementation(AActor* InstigatorActor)
             // Розблоковуємо взаємодію для нового стану
             PC->SetInteractLocked(false);
 
-        }, 1.0f, false);
+            // LARS: the pilot is aboard - lower the Shell into the water; 6DOF + HUD come at the release.
+            if (ALARSDockArm* Arm = WeakArm.Get())
+            {
+                Arm->BeginLaunch();
+            }
+
+        }, BlendTime, false);
     }
+}
+
+void AShellDock::DisembarkPilot(AShellPawn* Shell)
+{
     //~ Висадка на док
-    else if (AShellPawn* Shell = Cast<AShellPawn>(InstigatorActor))
+    if (Shell)
     {
         AAdminPlayerController* AdminPC = Cast<AAdminPlayerController>(Shell->GetController());
         if (!AdminPC) return;

@@ -9,6 +9,7 @@ class ADirectionalLight;
 class ASkyLight;
 class AExponentialHeightFog;
 class UMaterialInstanceDynamic;
+class UMaterialParameterCollection;
 
 UENUM(BlueprintType)
 enum class EAOSOceanZone : uint8
@@ -73,6 +74,17 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Ocean|Refs")
 	TObjectPtr<AExponentialHeightFog> HeightFog;
+
+	/**
+	 * MPC_AOS_OceanWaves: the 8 largest Gerstner waves + water clock, so that the sun light function can test
+	 * the local wave surface instead of the flat mean plane (no caustics / darkening on dry walls in a trough).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Ocean|Refs")
+	TObjectPtr<UMaterialParameterCollection> WaveCollection;
+
+	/** Hysteresis around the waterline: fog/PP presets do not flicker while the camera rides the swell. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean", meta = (ClampMin = "0", Units = "m"))
+	float WaterlineHysteresisM = 0.1f;
 
 	// --- Optics (PDF: Jerlov II) ----------------------------------------------------------------
 	/** Diffuse attenuation of PAR, 1/m: mean Kd(525 nm, 460 nm) of Jerlov II = (0.080 + 0.065) / 2. */
@@ -139,6 +151,22 @@ public:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Exposure")
 	float ExposureMaxEV = 6.f;
 
+	/**
+	 * Histogram metering underwater: the darkest share of the frame that is ignored. Below the photic zone most of
+	 * the frame is black water; metering it (engine default 10 %) pushed the exposure up until a headlight-lit wall
+	 * sat 7 stops over (two white discs). 60 % meters the lit subject instead; open water is barely affected.
+	 */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Exposure", meta = (ClampMin = "0", ClampMax = "100", Units = "Percent"))
+	float ExposureLowPercentUnderwater = 60.f;
+
+	/** Brightest share NOT ignored by the metering (engine default 90 %): the beam hot spot counts. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Exposure", meta = (ClampMin = "0", ClampMax = "100", Units = "Percent"))
+	float ExposureHighPercentUnderwater = 98.f;
+
+	/** Exposure compensation underwater, EV (engine default +1; +0.5 keeps a lit wall at ~0.8 of white at 1-8 m). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Exposure", meta = (ClampMin = "-4", ClampMax = "4"))
+	float ExposureBiasUnderwater = 0.5f;
+
 	/** Seconds-based smoothing of the depth (avoids popping when the camera bobs at the waterline). */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean", meta = (ClampMin = "0"))
 	float DepthSmoothingSpeed = 6.f;
@@ -154,6 +182,8 @@ private:
 	float GetWaterSurfaceZ(const FVector& At) const;
 	void ApplyFogPreset(const FAOSFogPreset& Preset, float InscatterScale);
 	void Apply(bool bUnderwater, float DepthM);
+	void SetupWaveCollection();
+	bool AreCausticsRendered(const class ULightComponent* SunLight) const;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> UnderwaterMID;

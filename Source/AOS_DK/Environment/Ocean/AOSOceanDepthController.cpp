@@ -7,17 +7,24 @@
 #include "Engine/DirectionalLight.h"
 #include "Engine/ExponentialHeightFog.h"
 #include "Engine/SkyLight.h"
+#include "GerstnerWaterWaves.h"
+#include "HAL/IConsoleManager.h"
+#include "Kismet/KismetMaterialLibrary.h"
+#include "Materials/MaterialParameterCollection.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "WaterBodyActor.h"
 #include "WaterBodyComponent.h"
+#include "WaterWaves.h"
 
 namespace AOSOceanParams
 {
 	static const FName FogAmbientColor(TEXT("Fog Ambient Color"));
 	static const FName FogScatterColor(TEXT("Fog Scatter Color"));
 	static constexpr float ReapplyDepthStepM = 0.25f;
+	static const FName WaveTime(TEXT("WaveTime"));
+	static constexpr int32 CollectionWaves = 8;
 }
 
 AAOSOceanDepthController::AAOSOceanDepthController()
@@ -44,6 +51,43 @@ void AAOSOceanDepthController::BeginPlay()
 	Super::BeginPlay();
 	ResolveReferences();
 	CaptureBaseline();
+	SetupWaveCollection();
+}
+
+void AAOSOceanDepthController::SetupWaveCollection()
+{
+	if (!WaveCollection)
+	{
+		return;
+	}
+	const UWaterWavesBase* WavesBase = WaterBody ? WaterBody->GetWaterWaves() : nullptr;
+	const UGerstnerWaterWaves* Gerstner = WavesBase ? Cast<UGerstnerWaterWaves>(WavesBase->GetWaterWaves()) : nullptr;
+	TArray<FGerstnerWave> Sorted;
+	if (Gerstner)
+	{
+		Sorted = Gerstner->GetGerstnerWaves();
+		Sorted.Sort([](const FGerstnerWave& A, const FGerstnerWave& B) { return A.Amplitude > B.Amplitude; });
+	}
+	for (int32 i = 0; i < AOSOceanParams::CollectionWaves; ++i)
+	{
+		const FName Name(*FString::Printf(TEXT("W%dA"), i));
+		const FLinearColor Value = Sorted.IsValidIndex(i)
+			? FLinearColor(Sorted[i].WaveVector.X, Sorted[i].WaveVector.Y, Sorted[i].WaveSpeed, Sorted[i].Amplitude)
+			: FLinearColor(0.f, 0.f, 0.f, 0.f);
+		UKismetMaterialLibrary::SetVectorParameterValue(this, WaveCollection, Name, Value);
+	}
+}
+
+bool AAOSOceanDepthController::AreCausticsRendered(const ULightComponent* SunLight) const
+{
+	// Without the light function (none assigned, or light functions disabled by scalability) the 1/mean(LF)
+	// compensation would only over-brighten the sun.
+	if (!SunLight || !SunLight->LightFunctionMaterial)
+	{
+		return false;
+	}
+	static const IConsoleVariable* LightFunctionQuality = IConsoleManager::Get().FindConsoleVariable(TEXT("r.LightFunctionQuality"));
+	return !LightFunctionQuality || LightFunctionQuality->GetInt() > 0;
 }
 
 void AAOSOceanDepthController::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -147,8 +191,19 @@ void AAOSOceanDepthController::Tick(float DeltaSeconds)
 		return;
 	}
 
+	if (WaveCollection && WaterBody && WaterBody->GetWaterBodyComponent())
+	{
+		UKismetMaterialLibrary::SetScalarParameterValue(this, WaveCollection, AOSOceanParams::WaveTime,
+			WaterBody->GetWaterBodyComponent()->GetWaveReferenceTime());
+	}
+
 	const float RawDepthM = (GetWaterSurfaceZ(View) - View.Z) / 100.f;
-	const bool bUnderwater = RawDepthM > 0.f;
+	// Hysteresis: the swell would otherwise toggle the air/water presets every frame at the waterline.
+	bool bUnderwater = RawDepthM > 0.f;
+	if (LastUnderwater >= 0)
+	{
+		bUnderwater = LastUnderwater ? (RawDepthM > -WaterlineHysteresisM) : (RawDepthM > WaterlineHysteresisM);
+	}
 	const float TargetDepthM = FMath::Max(RawDepthM, 0.f);
 	SmoothedDepthM = (DepthSmoothingSpeed > 0.f)
 		? FMath::FInterpTo(SmoothedDepthM, TargetDepthM, DeltaSeconds, DepthSmoothingSpeed)
@@ -205,7 +260,7 @@ void AAOSOceanDepthController::Apply(bool bUnderwater, float DepthM)
 		// so Lumen does not bounce sunlight into the aphotic zone and VSM pages are freed.
 		// Energy-conserving caustics: boost by 1 / mean(LF) where the caustic pattern is active.
 		float CausticCompensation = 1.f;
-		if (bUnderwater)
+		if (bUnderwater && AreCausticsRendered(SunLight))
 		{
 			const float Fade = FMath::Exp(-DepthM / FMath::Max(CausticExtinctionDepthM, 0.1f))
 				* (1.f - FMath::SmoothStep(CausticCutStartM, CausticCutEndM, DepthM));
@@ -237,6 +292,12 @@ void AAOSOceanDepthController::Apply(bool bUnderwater, float DepthM)
 		PP.AutoExposureMinBrightness = FMath::Lerp(ExposureMinEVSurface, ExposureMinEVDeep,
 			FMath::SmoothStep(EpipelagicBottomM, MesopelagicBottomM, DepthM));
 		PP.AutoExposureMaxBrightness = ExposureMaxEV;
+		PP.bOverride_AutoExposureLowPercent = true;
+		PP.bOverride_AutoExposureHighPercent = true;
+		PP.bOverride_AutoExposureBias = true;
+		PP.AutoExposureLowPercent = FMath::Min(ExposureLowPercentUnderwater, ExposureHighPercentUnderwater - 1.f);
+		PP.AutoExposureHighPercent = ExposureHighPercentUnderwater;
+		PP.AutoExposureBias = ExposureBiasUnderwater;
 
 		// Re-fetch: the water body recreates its MID when its materials are rebuilt. This call also copies
 		// UnderwaterPostProcessSettings into the transient settings used by the renderer.

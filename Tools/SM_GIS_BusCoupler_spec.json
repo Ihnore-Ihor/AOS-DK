@@ -1,0 +1,455 @@
+{
+  "asset": "SM_GIS_BusCoupler",
+  "units": "cm",
+  "space": "3ds Max RH Z-up, +X busduct axis; UE import maps (x, y, z) -> (x, -y, z)",
+  "slots": [
+    "MS_CastAluminum",
+    "MS_Conductor",
+    "MS_Insulator",
+    "MS_Status"
+  ],
+  "shell": [
+    400.0,
+    200.0,
+    200.0
+  ],
+  "shell_r": 244.94897427831782,
+  "sockets": {
+    "SOCKET_Inspection_Hatch_00": {
+      "pos": [
+        -1400.0,
+        4265.0,
+        0.0
+      ],
+      "x": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "z": [
+        1,
+        0,
+        0
+      ]
+    },
+    "SOCKET_Inspection_Hatch_01": {
+      "pos": [
+        1400.0,
+        -4265.0,
+        0.0
+      ],
+      "x": [
+        0.0,
+        -1.0,
+        1.2246467991473532e-16
+      ],
+      "z": [
+        1,
+        0,
+        0
+      ]
+    },
+    "SOCKET_RuptureDisc_Mount": {
+      "pos": [
+        0,
+        0,
+        4342.0
+      ],
+      "x": [
+        0,
+        0,
+        1
+      ],
+      "z": [
+        1,
+        0,
+        0
+      ]
+    },
+    "SOCKET_Arc_Electrode_01": {
+      "pos": [
+        345.0,
+        1004.092,
+        1004.092
+      ],
+      "x": [
+        0.0,
+        0.7071067811865476,
+        0.7071067811865476
+      ],
+      "z": [
+        1,
+        0,
+        0
+      ]
+    },
+    "SOCKET_Arc_Electrode_02": {
+      "pos": [
+        345.0,
+        -1004.092,
+        1004.092
+      ],
+      "x": [
+        0.0,
+        -0.7071067811865475,
+        0.7071067811865476
+      ],
+      "z": [
+        1,
+        0,
+        0
+      ]
+    },
+    "SOCKET_Arc_Electrode_03": {
+      "pos": [
+        345.0,
+        -1004.092,
+        -1004.092
+      ],
+      "x": [
+        0.0,
+        -0.7071067811865477,
+        -0.7071067811865475
+      ],
+      "z": [
+        1,
+        0,
+        0
+      ]
+    },
+    "SOCKET_Arc_Electrode_04": {
+      "pos": [
+        345.0,
+        1004.092,
+        -1004.092
+      ],
+      "x": [
+        0.0,
+        0.7071067811865474,
+        -0.7071067811865477
+      ],
+      "z": [
+        1,
+        0,
+        0
+      ]
+    },
+    "SOCKET_Snap_Front": {
+      "pos": [
+        -3000.0,
+        0,
+        0
+      ],
+      "x": [
+        -1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Snap_Rear": {
+      "pos": [
+        3000.0,
+        0,
+        0
+      ],
+      "x": [
+        1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Nav_Conduit_In": {
+      "pos": [
+        -3000.0,
+        0.0,
+        2784.0
+      ],
+      "x": [
+        1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Nav_Conduit_Out": {
+      "pos": [
+        3000.0,
+        0.0,
+        2784.0
+      ],
+      "x": [
+        1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    }
+  },
+  "lanes": [
+    {
+      "az": 30.0,
+      "rho": 2800.0,
+      "centre_yz": [
+        2424.87,
+        1400.0
+      ],
+      "radius": 999.98
+    },
+    {
+      "az": 90.0,
+      "rho": 2784.0,
+      "centre_yz": [
+        0.0,
+        2784.0
+      ],
+      "radius": 992.0
+    },
+    {
+      "az": 150.0,
+      "rho": 2800.0,
+      "centre_yz": [
+        -2424.87,
+        1400.0
+      ],
+      "radius": 999.98
+    },
+    {
+      "az": 210.0,
+      "rho": 2800.0,
+      "centre_yz": [
+        -2424.87,
+        -1400.0
+      ],
+      "radius": 999.98
+    },
+    {
+      "az": 270.0,
+      "rho": 2784.0,
+      "centre_yz": [
+        -0.0,
+        -2784.0
+      ],
+      "radius": 992.0
+    },
+    {
+      "az": 330.0,
+      "rho": 2800.0,
+      "centre_yz": [
+        2424.87,
+        -1400.0
+      ],
+      "radius": 999.98
+    }
+  ],
+  "ring_band": {
+    "x_insulator_band": [
+      -954.3,
+      874.3
+    ],
+    "r_inner": 1503.9,
+    "r_outer": 3776.0,
+    "radial_width": 2272.1
+  },
+  "spoke_az": [
+    0.0,
+    60.0,
+    120.0,
+    180.0,
+    240.0,
+    300.0
+  ],
+  "stats": {
+    "max_units": "centimeters",
+    "max_scale": 1.0,
+    "uv_overlapping_faces": 0,
+    "parts": 623,
+    "fins": 74,
+    "verts": 27446,
+    "tris": 52416,
+    "mat_ids": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "bbox_min": [
+      -3000.0,
+      -4400.0,
+      -4400.0
+    ],
+    "bbox_max": [
+      3000.0,
+      4400.0,
+      4400.0
+    ],
+    "lane_radius_min": 992.0,
+    "shell_bounding_sphere_r": 244.9,
+    "lane_margin_cm": 747.1,
+    "render_verts_in_lanes": 0,
+    "render_verts_in_ring_band": 0,
+    "render_verts_uncovered_interior": 0,
+    "render_verts_uncovered_exterior": 0,
+    "uncovered_samples": [],
+    "ucx": [
+      {
+        "name": "UCX_SM_GIS_BusCoupler_00",
+        "part": "enclosure_stave_00",
+        "verts": 8,
+        "lane_clearance_cm": 498.92
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_01",
+        "part": "enclosure_stave_01",
+        "verts": 8,
+        "lane_clearance_cm": -0.0
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_02",
+        "part": "enclosure_stave_02",
+        "verts": 8,
+        "lane_clearance_cm": 71.45
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_03",
+        "part": "enclosure_stave_03",
+        "verts": 8,
+        "lane_clearance_cm": 252.29
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_04",
+        "part": "enclosure_stave_04",
+        "verts": 8,
+        "lane_clearance_cm": 0.02
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_05",
+        "part": "enclosure_stave_05",
+        "verts": 8,
+        "lane_clearance_cm": 252.29
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_06",
+        "part": "enclosure_stave_06",
+        "verts": 8,
+        "lane_clearance_cm": 71.45
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_07",
+        "part": "enclosure_stave_07",
+        "verts": 8,
+        "lane_clearance_cm": -0.0
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_08",
+        "part": "enclosure_stave_08",
+        "verts": 8,
+        "lane_clearance_cm": 498.92
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_09",
+        "part": "enclosure_stave_09",
+        "verts": 8,
+        "lane_clearance_cm": -0.0
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_10",
+        "part": "enclosure_stave_10",
+        "verts": 8,
+        "lane_clearance_cm": 71.45
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_11",
+        "part": "enclosure_stave_11",
+        "verts": 8,
+        "lane_clearance_cm": 252.29
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_12",
+        "part": "enclosure_stave_12",
+        "verts": 8,
+        "lane_clearance_cm": 0.02
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_13",
+        "part": "enclosure_stave_13",
+        "verts": 8,
+        "lane_clearance_cm": 252.29
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_14",
+        "part": "enclosure_stave_14",
+        "verts": 8,
+        "lane_clearance_cm": 71.45
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_15",
+        "part": "enclosure_stave_15",
+        "verts": 8,
+        "lane_clearance_cm": -0.0
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_16",
+        "part": "conductor_prism16",
+        "verts": 32,
+        "lane_clearance_cm": 303.06
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_17",
+        "part": "insulator_spoke_00",
+        "verts": 8,
+        "lane_clearance_cm": 0.02
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_18",
+        "part": "insulator_spoke_01",
+        "verts": 8,
+        "lane_clearance_cm": -0.0
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_19",
+        "part": "insulator_spoke_02",
+        "verts": 8,
+        "lane_clearance_cm": -0.0
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_20",
+        "part": "insulator_spoke_03",
+        "verts": 8,
+        "lane_clearance_cm": 0.02
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_21",
+        "part": "insulator_spoke_04",
+        "verts": 8,
+        "lane_clearance_cm": -0.0
+      },
+      {
+        "name": "UCX_SM_GIS_BusCoupler_22",
+        "part": "insulator_spoke_05",
+        "verts": 8,
+        "lane_clearance_cm": -0.0
+      }
+    ],
+    "ucx_count": 23,
+    "ucx_max_verts": 32,
+    "ucx_min_lane_clearance": -0.0
+  }
+}

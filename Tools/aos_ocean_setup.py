@@ -39,6 +39,8 @@ MI_WATER = WATER_DIR + "/MI_Water_Ocean_AOS"
 MI_UWPP = WATER_DIR + "/MI_UnderwaterPostProcess_AOS"          # the one assigned to WaterBodyOcean
 LF_MAT_NAME = "M_LF_OceanCaustics_AOS"
 LF_MI_NAME = "MI_LF_OceanCaustics_AOS"
+WAVE_MPC = WATER_DIR + "/MPC_AOS_OceanWaves"   # 8 largest Gerstner waves + water clock, filled by the depth controller
+WAVE_MPC_COUNT = 8
 # Own 512^2 G8 caustic pattern (plugin HDR texture / 2, never streamed): the plugin's float texture is
 # streamed and light-function textures are not seen by the streamer, so it stayed at a 1x1 mip (flat value).
 CAUSTIC_TEX = WATER_DIR + "/T_Caustics_AOS"
@@ -205,7 +207,8 @@ def _scalar(mat, name, value, x, y, group="AOS Caustics"):
 
 
 def _c(a, b, b_in="", a_out=""):
-    mel.connect_material_expressions(a, a_out, b, b_in)
+    if not mel.connect_material_expressions(a, a_out, b, b_in):
+        raise RuntimeError("connect failed: %s.%s -> %s.%s" % (a.get_name(), a_out, b.get_name(), b_in))
 
 
 def ensure_caustic_texture():
@@ -229,6 +232,46 @@ def ensure_caustic_texture():
     tex.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_WORLD)
     touched_assets.add(tex.get_path_name())
     return tex
+
+
+def ensure_wave_collection():
+    if eas.does_asset_exist(WAVE_MPC):
+        mpc = unreal.load_asset(WAVE_MPC)
+    else:
+        mpc = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+            WAVE_MPC.split("/")[-1], WATER_DIR, unreal.MaterialParameterCollection,
+            unreal.MaterialParameterCollectionFactoryNew())
+    have_v = [str(v.get_editor_property("parameter_name")) for v in mpc.get_editor_property("vector_parameters")]
+    have_s = [str(v.get_editor_property("parameter_name")) for v in mpc.get_editor_property("scalar_parameters")]
+    vecs = list(mpc.get_editor_property("vector_parameters"))
+    for i in range(WAVE_MPC_COUNT):
+        if "W%dA" % i not in have_v:
+            v = unreal.CollectionVectorParameter()
+            v.set_editor_property("parameter_name", "W%dA" % i)
+            v.set_editor_property("default_value", unreal.LinearColor(0, 0, 0, 0))   # flat sea in the editor
+            vecs.append(v)
+    scal = list(mpc.get_editor_property("scalar_parameters"))
+    if "WaveTime" not in have_s:
+        t = unreal.CollectionScalarParameter()
+        t.set_editor_property("parameter_name", "WaveTime")
+        t.set_editor_property("default_value", 0.0)
+        scal.append(t)
+    mpc.set_editor_property("vector_parameters", vecs)
+    mpc.set_editor_property("scalar_parameters", scal)
+    touched_assets.add(mpc.get_path_name())
+    return mpc
+
+
+WAVE_ELEV_CODE = r"""
+// Local Gerstner surface elevation (vertical term of the 8 largest waves, same data/clock as the water mesh).
+float4 Wv[8] = { W0, W1, W2, W3, W4, W5, W6, W7 };
+float e = 0;
+[unroll] for (int i = 0; i < 8; ++i)
+{
+    e += Wv[i].w * cos(dot(P.xy, Wv[i].xy) - Wv[i].z * T);
+}
+return e;
+"""
 
 
 def build_light_function(water_z):
@@ -267,8 +310,26 @@ def build_light_function(water_z):
     wp = _expr(mat, E.MaterialExpressionWorldPosition, -2300, -300)
     wz = _expr(mat, E.MaterialExpressionComponentMask, -2100, -300, r=False, g=False, b=True, a=False)
     _c(wp, wz)
+    # local wave surface = WaterZ + sum(A cos(k.x - w t))  (was the flat mean plane -> caustics on dry walls)
+    mpc = ensure_wave_collection()
+    elev = _expr(mat, E.MaterialExpressionCustom, -2100, -500, code=WAVE_ELEV_CODE,
+                 output_type=unreal.CustomMaterialOutputType.CMOT_FLOAT1, description="AOS wave elevation")
+    ins = []
+    for n in ["P", "T"] + ["W%d" % i for i in range(WAVE_MPC_COUNT)]:
+        ci = unreal.CustomInput(); ci.set_editor_property("input_name", n); ins.append(ci)
+    elev.set_editor_property("inputs", ins)
+    _c(wp, elev, "P")
+    cp_t = _expr(mat, E.MaterialExpressionCollectionParameter, -2400, -650, collection=mpc)
+    cp_t.set_editor_property("parameter_name", "WaveTime")
+    _c(cp_t, elev, "T")
+    for i in range(WAVE_MPC_COUNT):
+        cp = _expr(mat, E.MaterialExpressionCollectionParameter, -2400, -600 + 40 * i, collection=mpc)
+        cp.set_editor_property("parameter_name", "W%dA" % i)
+        _c(cp, elev, "W%d" % i)
+    surf = _expr(mat, E.MaterialExpressionAdd, -1950, -450)
+    _c(p_wz, surf, "A"); _c(elev, surf, "B")
     sub = _expr(mat, E.MaterialExpressionSubtract, -1900, -250)
-    _c(p_wz, sub, "A"); _c(wz, sub, "B")
+    _c(surf, sub, "A"); _c(wz, sub, "B")
     depth = _expr(mat, E.MaterialExpressionMax, -1700, -250, const_b=0.0)
     _c(sub, depth, "A")
 
@@ -495,6 +556,7 @@ def setup_actors(lf_mi):
             ctrl.set_editor_property("sun", dl)
             ctrl.set_editor_property("sky_light", sl)
             ctrl.set_editor_property("height_fog", fog)
+            ctrl.set_editor_property("wave_collection", unreal.load_asset(WAVE_MPC))
             ctrl.set_editor_property("pp_fog_ambient_intensity", PP_FOG_AMBIENT[3])
             ctrl.set_editor_property("pp_fog_scatter_intensity", PP_FOG_SCATTER[3])
             ctrl.set_editor_property("kd_par_per_meter", KPAR_M)

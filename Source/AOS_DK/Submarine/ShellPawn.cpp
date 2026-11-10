@@ -12,6 +12,7 @@
 #include "GameFramework/PhysicsVolume.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "AOS_DK/Submarine/Energy/ShellEnergyComponent.h"
+#include "AOS_DK/Environment/Physics/AOSFluidPhysicsComponent.h"
 #include "AOS_DK/Submarine/HUD/PlayerSubmarineHUDWidget.h"
 #include "AOS_DK/Submarine/Subdrones/Core/SubDroneBase.h"
 #include "AOS_DK/Submarine/Subdrones/Attacker/SubDrone_Attacker.h"
@@ -25,17 +26,6 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 #include "TimerManager.h"
-
-FGerstnerHarmonic::FGerstnerHarmonic(float InA, float InWavelength, float AngleDeg, float InPhase)
-{
-	Amplitude = InA;
-	K = 2.0f * PI / FMath::Max(1.0f, InWavelength);
-	// Deep water dispersion relation: omega = sqrt(g * k), assuming g = 981 cm/s^2
-	Omega = FMath::Sqrt(981.0f * K);
-	float Rad = FMath::DegreesToRadians(AngleDeg);
-	Direction = FVector2D(FMath::Cos(Rad), FMath::Sin(Rad));
-	PhaseOffset = InPhase;
-}
 
 AShellPawn::AShellPawn()
 {
@@ -60,6 +50,17 @@ AShellPawn::AShellPawn()
 	FPCamera->SetupAttachment(BoxRoot);
 	FPCamera->bUsePawnControlRotation = false;
 
+	// Water interaction: the Shell keeps its mass-agnostic vehicle hydrodynamics and steps them itself
+	// (same frame order as before: fluid forces first, then ballast / thrust / gyro).
+	FluidPhysics = CreateDefaultSubobject<UAOSFluidPhysicsComponent>(TEXT("FluidPhysics"));
+	FluidPhysics->ResponseModel = EAOSFluidResponseModel::VehicleAcceleration;
+	FluidPhysics->bAutoSimulate = false;
+	// Original Shell hydrodynamics (cm/s^2 tuning)
+	FluidPhysics->FluidDrag = 1.5f;
+	FluidPhysics->FluidQuadraticDrag = 0.001f;
+	FluidPhysics->AngularFluidDrag = 2.5f;
+	FluidPhysics->RightingStiffness = 4.0f;
+
 	DroneBay = CreateDefaultSubobject<USubDroneBayComponent>(TEXT("DroneBay"));
 	Energy = CreateDefaultSubobject<UShellEnergyComponent>(TEXT("Energy"));
 
@@ -83,8 +84,10 @@ AShellPawn::AShellPawn()
 		Light->SetIntensityUnits(ELightUnits::Lumens);
 		Light->SetIntensity(5200.f);
 		Light->SetAttenuationRadius(5200.f);
-		Light->SetInnerConeAngle(13.f);
-		Light->SetOuterConeAngle(27.f);
+		// Soft flood profile (was 13 / 27 deg: two hard-edged discs on any wall in front of the nose).
+		Light->SetInnerConeAngle(6.f);
+		Light->SetOuterConeAngle(36.f);
+		Light->SetSourceRadius(6.f);
 		Light->SetLightColor(FLinearColor(1.f, 0.95f, 0.88f));
 		Light->SetVolumetricScatteringIntensity(1.4f);
 		Light->SetCastShadows(false);
@@ -103,8 +106,6 @@ void AShellPawn::BeginPlay()
 	CurrentBallastForce = 0.f;
 	bIsStabilizing = false;
 
-	InitializeWaves();
-
 	CacheLights();
 	SetLightsLevel(GetController() ? 1.f : 0.f, false);
 
@@ -113,57 +114,6 @@ void AShellPawn::BeginPlay()
 		Energy->OnSubmarineEnergyDepleted.AddDynamic(this, &AShellPawn::HandleEnergyDepleted);
 	}
 	ResolveHomeDock();
-}
-
-void AShellPawn::InitializeWaves()
-{
-	// Construct analytical spectrum based on user's Gerstner Water parameters
-	// (Amplitudes: 10-200, Wavelengths: 800-14000, Dominant Angle: 35)
-	WaveHarmonics.Empty();
-	WaveHarmonics.Emplace(200.0f, 14000.0f, 35.0f,  0.0f);   // Dominant long wave
-	WaveHarmonics.Emplace(80.0f,   6000.0f, 55.0f,  1.5f);   // Mid-range crossing wave
-	WaveHarmonics.Emplace(30.0f,   2000.0f, 15.0f,  3.14f);  // Shorter chop
-	WaveHarmonics.Emplace(10.0f,   800.0f,  45.0f,  0.7f);   // Capillary/small waves
-}
-
-void AShellPawn::EvaluateWaveKinematics(const FVector& Location, float Time, float& OutSurfaceZ, FVector& OutFluidVel, FVector& OutWaveNormal)
-{
-	OutSurfaceZ = OceanSurfaceZ;
-	OutFluidVel = FVector::ZeroVector;
-	
-	// Depth below standard ocean level (capped at 0 for surface calculations)
-	float ZDepth = FMath::Min(0.0f, Location.Z - OceanSurfaceZ);
-	FVector2D Pos2D(Location.X, Location.Y);
-
-	float GradX = 0.0f;
-	float GradY = 0.0f;
-
-	for (const FGerstnerHarmonic& H : WaveHarmonics)
-	{
-		float Phase = FVector2D::DotProduct(H.Direction, Pos2D) * H.K - H.Omega * Time + H.PhaseOffset;
-		float CosP = FMath::Cos(Phase);
-		float SinP = FMath::Sin(Phase);
-
-		// Accumulate Surface Elevation
-		OutSurfaceZ += H.Amplitude * CosP;
-
-		// Kinematics Exponential Decay e^(k*z)
-		float DepthDecay = FMath::Exp(H.K * ZDepth);
-
-		// Orbital Velocity field
-		float VelMag = H.Amplitude * H.Omega * DepthDecay;
-		OutFluidVel.X += H.Direction.X * VelMag * CosP;
-		OutFluidVel.Y += H.Direction.Y * VelMag * CosP;
-		OutFluidVel.Z += VelMag * SinP;
-
-		// Wave surface gradient (derivative of elevation) for normal vector
-		float D = -H.Amplitude * H.K * SinP;
-		GradX += H.Direction.X * D;
-		GradY += H.Direction.Y * D;
-	}
-
-	// Normal aligns with global Z far underwater, but tilts with wave surface near the top
-	OutWaveNormal = FVector(-GradX, -GradY, 1.0f).GetSafeNormal();
 }
 
 void AShellPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -220,7 +170,14 @@ void AShellPawn::NotifyControllerChanged()
 			ResetCameraPostProcess();
 			SetLightsLevel(1.f, false);
 		}
-		ShowCockpitHUD(NewPC);
+		if (!bInLARSCradle)
+		{
+			ShowCockpitHUD(NewPC);
+		}
+		else
+		{
+			EnsureCockpitHUD(NewPC);   // LARS: pre-built, shown the instant the camera lands in the cockpit
+		}
 	}
 	else
 	{
@@ -245,6 +202,15 @@ void AShellPawn::Interact_Implementation(AActor* InstigatorActor)
 {
 	if (AAdminCharacter* Admin = Cast<AAdminCharacter>(InstigatorActor))
 	{
+		// Hanging in the LARS cradle: boarding goes through the dock (launch sequence), not a direct possess.
+		if (bInLARSCradle)
+		{
+			if (AShellDock* Dock = ResolveHomeDock())
+			{
+				IInteractable::Execute_Interact(Dock, Admin);
+			}
+			return;
+		}
 		if (AController* PC = Admin->GetController())
 		{
 			PC->Possess(this);
@@ -257,8 +223,17 @@ void AShellPawn::Interact_Implementation(AActor* InstigatorActor)
 
 void AShellPawn::HandleInteract()
 {
-	if (bSystemsHalted)
+	if (bSystemsHalted || bControlsBlocked)
 	{
+		return;
+	}
+	// Fresh query: [F] acts on what is under the reticle now, not on the last 30 Hz sample.
+	InteractFocus = QueryInteractFocus();
+	InteractQueryTimer = 1.f / InteractQueryRate;
+	if (AActor* Focus = InteractFocus.Get())
+	{
+		IInteractable::Execute_Interact(Focus, this);
+		RefreshFocusPrompt();
 		return;
 	}
 	if (AAdminPlayerController* PC = Cast<AAdminPlayerController>(GetController()))
@@ -267,9 +242,126 @@ void AShellPawn::HandleInteract()
 	}
 }
 
+// ==================================================================================================
+// [F] interaction focus
+// ==================================================================================================
+AActor* AShellPawn::QueryInteractFocus() const
+{
+	UWorld* World = GetWorld();
+	AAdminPlayerController* PC = Cast<AAdminPlayerController>(GetController());
+	if (!World || !PC || bSystemsHalted || bControlsBlocked || PC->IsInteractLocked())
+	{
+		return nullptr;
+	}
+
+	FVector ViewLoc;
+	FRotator ViewRot;
+	PC->GetPlayerViewPoint(ViewLoc, ViewRot);
+	const FVector Dir = ViewRot.Vector();
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShellInteractFocus), false, this);
+	TArray<AActor*> Attached;
+	GetAttachedActors(Attached); // the hidden pilot
+	Params.AddIgnoredActors(Attached);
+	if (DroneBay)
+	{
+		for (int32 Slot = 0; Slot < DroneBay->GetNumSlots(); ++Slot)
+		{
+			if (const AActor* Drone = DroneBay->GetDrone(Slot))
+			{
+				Params.AddIgnoredActor(Drone);
+			}
+		}
+	}
+
+	// 1) What the reticle sees: walls occlude, terminals / docks that block Visibility are direct hits.
+	AActor* Best = nullptr;
+	float BestDistance = InteractRange;
+	FHitResult Hit;
+	if (World->LineTraceSingleByChannel(Hit, ViewLoc, ViewLoc + Dir * InteractRange, ECC_Visibility, Params))
+	{
+		BestDistance = Hit.Distance;
+		AActor* HitActor = Hit.GetActor();
+		if (HitActor && HitActor != this && HitActor->Implements<UInteractable>())
+		{
+			Best = HitActor;
+		}
+	}
+
+	// 2) Query-only focus volumes (pickup spheres block no channel, so they never steal the drone aim):
+	//    object sweep up to the occluder. Multi object queries report every hit as a touch, sorted by distance.
+	TArray<FHitResult> Hits;
+	World->SweepMultiByObjectType(Hits, ViewLoc, ViewLoc + Dir * BestDistance, FQuat::Identity,
+		FCollisionObjectQueryParams(ECC_TO_BITFIELD(ECC_WorldDynamic)), FCollisionShape::MakeSphere(InteractAimRadius), Params);
+	for (const FHitResult& Touch : Hits)
+	{
+		AActor* HitActor = Touch.GetActor();
+		if (HitActor && HitActor != this && HitActor->Implements<UInteractable>() && Touch.Distance <= BestDistance)
+		{
+			Best = HitActor;
+			BestDistance = Touch.Distance;
+			break;
+		}
+	}
+
+	// 3) Nothing aimed at: whatever the controller found by overlap (dock berth, disembark point).
+	if (!Best)
+	{
+		AActor* Overlapped = PC->GetCurrentInteractable();
+		Best = Overlapped != this ? Overlapped : nullptr;
+	}
+	return Best;
+}
+
+void AShellPawn::RefreshFocusPrompt()
+{
+	FocusAction = FText::GetEmpty();
+	bFocusAvailable = false;
+	AActor* Focus = InteractFocus.Get();
+	if (!Focus || !Focus->Implements<UInteractable>())
+	{
+		InteractFocus.Reset();
+		return;
+	}
+	bFocusAvailable = true;
+	IInteractable::Execute_GetInteractPrompt(Focus, this, FocusAction, bFocusAvailable);
+	if (FocusAction.IsEmpty())
+	{
+		FocusAction = NSLOCTEXT("AOSShell", "InteractGeneric", "INTERACT");
+	}
+}
+
+void AShellPawn::UpdateInteractFocus(float DeltaTime)
+{
+	if (!IsLocallyControlled() || !Cast<APlayerController>(GetController()))
+	{
+		InteractFocus.Reset();
+		return;
+	}
+	InteractQueryTimer -= DeltaTime;
+	if (InteractQueryTimer > 0.f)
+	{
+		return;
+	}
+	InteractQueryTimer = 1.f / InteractQueryRate;
+	InteractFocus = QueryInteractFocus();
+	RefreshFocusPrompt();
+}
+
+bool AShellPawn::GetFocusPrompt(FText& OutAction, bool& bOutAvailable) const
+{
+	if (!InteractFocus.IsValid())
+	{
+		return false;
+	}
+	OutAction = FocusAction;
+	bOutAvailable = bFocusAvailable;
+	return true;
+}
+
 void AShellPawn::ApplyThrust(const FInputActionValue& Value)
 {
-	if (bSystemsHalted)
+	if (bSystemsHalted || bControlsBlocked)
 	{
 		return;
 	}
@@ -290,7 +382,7 @@ void AShellPawn::ResetThrust(const FInputActionValue& Value)
 
 void AShellPawn::ApplyRotation(const FInputActionValue& Value)
 {
-	if (bSystemsHalted)
+	if (bSystemsHalted || bControlsBlocked)
 	{
 		return;
 	}
@@ -307,7 +399,7 @@ void AShellPawn::ApplyRotation(const FInputActionValue& Value)
 
 void AShellPawn::ApplyBallast(const FInputActionValue& Value)
 {
-	if (bSystemsHalted)
+	if (bSystemsHalted || bControlsBlocked)
 	{
 		return;
 	}
@@ -336,7 +428,7 @@ void AShellPawn::TriggerStabilization()
 		PushTerminalLog(TEXT("gyro"), TEXT("offline - core halted"), EAOSHudLogSeverity::Warning);
 		return;
 	}
-	if (bIsStabilizing)
+	if (bIsStabilizing || bControlsBlocked)
 	{
 		return;
 	}
@@ -347,114 +439,20 @@ void AShellPawn::TriggerStabilization()
 
 void AShellPawn::UpdateHydrodynamics(float DeltaTime)
 {
-	const FVector SubLocation = BoxRoot->GetComponentLocation();
-	const FVector CurrentVelocity = BoxRoot->GetComponentVelocity();
-	
-	const bool bHasDriver = (GetController() != nullptr); 
-	
-	float LocalWaveZ = OceanSurfaceZ;
-	FVector FluidVelocity = FVector::ZeroVector;
-	FVector TargetNormal = FVector::UpVector;
-	
-	// Evaluates absolute fluid velocity at the current depth
-	EvaluateWaveKinematics(SubLocation, GetWorld()->GetTimeSeconds(), LocalWaveZ, FluidVelocity, TargetNormal);
-
-	bool bInWater = (SubLocation.Z <= LocalWaveZ);
-
-	if (bInWater)
+	if (!BoxRoot || !BoxRoot->IsSimulatingPhysics())
 	{
-		// Disable native engine gravity to handle buoyancy and penetration manually
-		BoxRoot->SetEnableGravity(false);
-
-		// Archimedes volume penetration: Gravity smoothly transitions to 0 as the hull sinks (first 150 cm)
-		float SubmergedDepth = LocalWaveZ - SubLocation.Z;
-		float EntryGravityFraction = FMath::Clamp(1.0f - (SubmergedDepth / 150.0f), 0.0f, 1.0f);
-		if (EntryGravityFraction > 0.01f)
-		{
-			// Pull down with residual gravity during surface piercing to create a heavy physical splash
-			BoxRoot->AddForce(FVector(0.f, 0.f, -980.0f * EntryGravityFraction), NAME_None, true);
-		}
-
-		// Morison Equation: Hydrodynamic drag opposing relative velocity
-		FVector RelativeVelocity = CurrentVelocity - FluidVelocity;
-		float RelSpeed = RelativeVelocity.Size();
-		float DragCoeff = LinearDrag + (QuadraticDrag * RelSpeed);
-		
-		float MaxSafeDrag = 0.5f / FMath::Max(DeltaTime, 0.0001f);
-		DragCoeff = FMath::Min(DragCoeff, MaxSafeDrag);
-
-		FVector DragAccel = -RelativeVelocity * DragCoeff;
-		BoxRoot->AddForce(DragAccel, NAME_None, true);
-
-		// Angular Hydrodynamic Damping
-		FVector AngularVel = BoxRoot->GetPhysicsAngularVelocityInRadians();
-		float SafeAngularDrag = FMath::Min(AngularDrag, MaxSafeDrag);
-		BoxRoot->AddTorqueInRadians(-AngularVel * SafeAngularDrag, NAME_None, true);
-
-		if (!bHasDriver)
-		{
-			// EMPTY BOAT MODE: Uses Archimedes spring to stay afloat at the dock
-			if (SubLocation.Z > LocalWaveZ - 500.0f)
-			{
-				float TargetZ = LocalWaveZ - 25.0f; 
-				float ZError = TargetZ - SubLocation.Z;
-				float BuoyancyAccelZ = (ZError * DockFlotationStiffness) - (CurrentVelocity.Z * DockFlotationDamping);
-				BoxRoot->AddForce(FVector(0.f, 0.f, BuoyancyAccelZ), NAME_None, true);
-			}
-			else
-			{
-				// Deep underwater parking brake
-				BoxRoot->AddForce(FVector(0.f, 0.f, -CurrentVelocity.Z * 4.0f), NAME_None, true);
-			}
-
-			// Automatically align empty boat with waves
-			FVector SubUp = BoxRoot->GetUpVector();
-			FVector RestoringTorqueAxis = FVector::CrossProduct(SubUp, TargetNormal);
-			BoxRoot->AddTorqueInRadians(RestoringTorqueAxis * RestoringStiffness, NAME_None, true);
-		}
-		else if (bSystemsHalted)
-		{
-			// HALTED: engines and gyro offline - the dead hull settles slowly.
-			CurrentBallastForce = FMath::FInterpTo(CurrentBallastForce, 0.f, DeltaTime, BallastChangeSpeed);
-			CurrentThrustScalar = FMath::FInterpTo(CurrentThrustScalar, 0.f, DeltaTime, ThrustRampSpeed);
-			BoxRoot->AddForce(FVector(0.f, 0.f, -HaltedSinkAcceleration), NAME_None, true);
-		}
-		else
-		{
-			// MANNED 6DOF MODE: Pure Neutral Buoyancy underwater
-
-			// Apply vertical engines only
-			CurrentBallastForce = FMath::FInterpTo(CurrentBallastForce, TargetBallastForce, DeltaTime, BallastChangeSpeed);
-			BoxRoot->AddForce(FVector(0.f, 0.f, CurrentBallastForce), NAME_None, true);
-
-			// Apply directional engines only
-			CurrentThrustScalar = FMath::FInterpTo(CurrentThrustScalar, TargetThrustScalar, DeltaTime, ThrustRampSpeed);
-			if (CurrentThrustScalar > 0.05f)
-			{
-				FVector LocalAccel = BoxRoot->GetComponentTransform().TransformVector(CurrentMoveInput * CurrentThrustScalar);
-				BoxRoot->AddForce(LocalAccel, NAME_None, true);
-			}
-
-			// Manual Gyrostabilizer (Only active when key is pressed)
-			if (bIsStabilizing)
-			{
-				FVector SubUp = BoxRoot->GetUpVector();
-				FVector RestoringTorqueAxis = FVector::CrossProduct(SubUp, FVector::UpVector);
-				BoxRoot->AddTorqueInRadians(RestoringTorqueAxis * (RestoringStiffness * 3.0f), NAME_None, true);
-
-				// Auto-disable when horizon alignment is reached
-				if (FVector::DotProduct(SubUp, FVector::UpVector) > 0.995f && AngularVel.Size() < 0.1f)
-				{
-					bIsStabilizing = false;
-					PushTerminalLog(TEXT("gyro"), TEXT("horizon locked - stabilizer idle"), EAOSHudLogSeverity::Info);
-				}
-			}
-		}
+		return; // kinematic (scripted) motion, e.g. a transit-shaft intake: no fluid forces on a non-simulating body
 	}
-	else
+	const bool bHasDriver = (GetController() != nullptr);
+
+	// Shared water engine: wave query, gravity/entry, Morison drag, angular damping and - while empty -
+	// the Archimedes flotation spring + wave-normal alignment.
+	FluidPhysics->SetPassiveFlotation(!bHasDriver);
+	const FAOSFluidSample Fluid = FluidPhysics->StepFluidPhysics(DeltaTime);
+
+	if (!Fluid.bInWater)
 	{
-		// AIR STATE: Full engine gravity, propulsion disabled
-		BoxRoot->SetEnableGravity(true);
+		// AIR STATE: full engine gravity (set by the component), propulsion disabled
 		CurrentThrustScalar = 0.f;
 		TargetThrustScalar = 0.f;
 		CurrentBallastForce = 0.f;
@@ -463,6 +461,58 @@ void AShellPawn::UpdateHydrodynamics(float DeltaTime)
 			PushTerminalLog(TEXT("gyro"), TEXT("no water contact - stabilizer off"), EAOSHudLogSeverity::Warning);
 		}
 		bIsStabilizing = false;
+		return;
+	}
+
+	if (!bHasDriver)
+	{
+		return; // EMPTY BOAT MODE: handled entirely by the passive flotation of the component
+	}
+
+	if (bControlsBlocked && !bSystemsHalted)
+	{
+		// LOCKED (scripted sequence): engines idle, the hull keeps neutral buoyancy.
+		CurrentBallastForce = 0.f;
+		CurrentThrustScalar = 0.f;
+		return;
+	}
+
+	if (bSystemsHalted)
+	{
+		// HALTED: engines and gyro offline - the dead hull settles slowly.
+		CurrentBallastForce = FMath::FInterpTo(CurrentBallastForce, 0.f, DeltaTime, BallastChangeSpeed);
+		CurrentThrustScalar = FMath::FInterpTo(CurrentThrustScalar, 0.f, DeltaTime, ThrustRampSpeed);
+		BoxRoot->AddForce(FVector(0.f, 0.f, -HaltedSinkAcceleration), NAME_None, true);
+		return;
+	}
+
+	// MANNED 6DOF MODE: pure neutral buoyancy underwater
+
+	// Vertical engines
+	CurrentBallastForce = FMath::FInterpTo(CurrentBallastForce, TargetBallastForce, DeltaTime, BallastChangeSpeed);
+	BoxRoot->AddForce(FVector(0.f, 0.f, CurrentBallastForce), NAME_None, true);
+
+	// Directional engines
+	CurrentThrustScalar = FMath::FInterpTo(CurrentThrustScalar, TargetThrustScalar, DeltaTime, ThrustRampSpeed);
+	if (CurrentThrustScalar > 0.05f)
+	{
+		FVector LocalAccel = BoxRoot->GetComponentTransform().TransformVector(CurrentMoveInput * CurrentThrustScalar);
+		BoxRoot->AddForce(LocalAccel, NAME_None, true);
+	}
+
+	// Manual gyrostabilizer (only while engaged): 3x the hull's metacentric stiffness
+	if (bIsStabilizing)
+	{
+		FVector SubUp = BoxRoot->GetUpVector();
+		FVector RestoringTorqueAxis = FVector::CrossProduct(SubUp, FVector::UpVector);
+		BoxRoot->AddTorqueInRadians(RestoringTorqueAxis * (FluidPhysics->GetRightingStiffness() * 3.0f), NAME_None, true);
+
+		// Auto-disable when horizon alignment is reached
+		if (FVector::DotProduct(SubUp, FVector::UpVector) > 0.995f && Fluid.AngularVelocity.Size() < 0.1f)
+		{
+			bIsStabilizing = false;
+			PushTerminalLog(TEXT("gyro"), TEXT("horizon locked - stabilizer idle"), EAOSHudLogSeverity::Info);
+		}
 	}
 }
 
@@ -472,7 +522,9 @@ void AShellPawn::Tick(float DeltaTime)
 	UpdateHydrodynamics(DeltaTime);
 	UpdateEnergyLoads();
 	UpdateLights(DeltaTime);
+	UpdateHeadlightDimming(DeltaTime);
 	UpdateCameraGlitch(DeltaTime);
+	UpdateInteractFocus(DeltaTime);
 	if (bSystemsHalted)
 	{
 		HaltElapsed += DeltaTime;
@@ -484,7 +536,39 @@ void AShellPawn::Tick(float DeltaTime)
 // ==================================================================================================
 void AShellPawn::StartBoost(const FInputActionValue& Value)
 {
-	bBoostHeld = !bSystemsHalted;
+	bBoostHeld = !bSystemsHalted && !bControlsBlocked;
+}
+
+// ==================================================================================================
+// Scripted control lock (transit shafts)
+// ==================================================================================================
+void AShellPawn::SetBlockControls(bool bBlock)
+{
+	if (bControlsBlocked == bBlock)
+	{
+		return;
+	}
+	bControlsBlocked = bBlock;
+	if (bBlock)
+	{
+		MoveAxisRaw = FVector2D::ZeroVector;
+		CurrentMoveInput = FVector::ZeroVector;
+		TargetThrustScalar = 0.f;
+		CurrentThrustScalar = 0.f;
+		TargetBallastForce = 0.f;
+		CurrentBallastForce = 0.f;
+		bBoostHeld = false;
+		bIsStabilizing = false;
+		if (DroneBay)
+		{
+			DroneBay->SetPrimaryActionHeld(false);
+			DroneBay->RecallAllDrones();
+		}
+	}
+	if (AAdminPlayerController* AdminPC = Cast<AAdminPlayerController>(GetController()))
+	{
+		AdminPC->SetInteractLocked(bBlock || bSystemsHalted);
+	}
 }
 
 void AShellPawn::StopBoost(const FInputActionValue& Value)
@@ -669,9 +753,76 @@ void AShellPawn::SetLightsLevel(float Level, bool bEmergencyRed)
 		else
 		{
 			Light->SetLightColor(Cached.BaseColor);
-			Light->SetIntensity(Cached.BaseIntensity * Level);
+			Light->SetIntensity(Cached.BaseIntensity * Level * (IsHeadlight(Light) ? HeadlightDim : 1.f));
 		}
 		Light->SetVisibility(Level > 0.001f);
+	}
+}
+
+bool AShellPawn::IsHeadlight(const ULightComponent* Light) const
+{
+	return Light && (Light == HeadlightLeft.Get() || Light == HeadlightRight.Get());
+}
+
+void AShellPawn::UpdateHeadlightDimming(float DeltaTime)
+{
+	UWorld* World = GetWorld();
+	if (!World || BeamFullPowerDistance <= 0.f || bSystemsHalted || LightsLevel <= 0.001f)
+	{
+		return;
+	}
+	BeamProbeTimer -= DeltaTime;
+	if (BeamProbeTimer <= 0.f)
+	{
+		BeamProbeTimer = 1.f / InteractQueryRate;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(ShellBeamProbe), false, this);
+		TArray<AActor*> Attached;
+		GetAttachedActors(Attached);
+		Params.AddIgnoredActors(Attached);
+		if (DroneBay)
+		{
+			for (int32 Slot = 0; Slot < DroneBay->GetNumSlots(); ++Slot)
+			{
+				if (const AActor* Drone = DroneBay->GetDrone(Slot))
+				{
+					Params.AddIgnoredActor(Drone);
+				}
+			}
+		}
+		// Nearest surface on either beam axis (Visibility: walls, props, Daemons; water and trigger volumes do not block it).
+		float Nearest = BeamFullPowerDistance;
+		for (const USpotLightComponent* Lamp : { HeadlightLeft.Get(), HeadlightRight.Get() })
+		{
+			if (!Lamp)
+			{
+				continue;
+			}
+			const FVector Start = Lamp->GetComponentLocation();
+			FHitResult Hit;
+			if (World->SweepSingleByChannel(Hit, Start, Start + Lamp->GetForwardVector() * BeamFullPowerDistance, FQuat::Identity,
+				ECC_Visibility, FCollisionShape::MakeSphere(BeamProbeRadius), Params))
+			{
+				Nearest = FMath::Min(Nearest, Hit.Distance);
+			}
+		}
+		const float R = Nearest / BeamFullPowerDistance;
+		HeadlightDimTarget = FMath::Clamp(R * R, MinBeamDimming, 1.f);
+	}
+
+	// Smooth in log space (even perceived speed), then drive the two lamps.
+	const float NewDim = FMath::Exp(FMath::FInterpTo(FMath::Loge(HeadlightDim), FMath::Loge(HeadlightDimTarget), DeltaTime, BeamDimmingSpeed));
+	if (FMath::Abs(NewDim - HeadlightDim) < 1e-4f * HeadlightDim)
+	{
+		return;
+	}
+	HeadlightDim = NewDim;
+	for (const FCachedLight& Cached : CachedLights)
+	{
+		ULightComponent* Light = Cached.Light.Get();
+		if (IsHeadlight(Light))
+		{
+			Light->SetIntensity(Cached.BaseIntensity * LightsLevel * HeadlightDim);
+		}
 	}
 }
 
@@ -714,21 +865,38 @@ void AShellPawn::UpdateLights(float DeltaTime)
 // ==================================================================================================
 // HUD
 // ==================================================================================================
-void AShellPawn::ShowCockpitHUD(APlayerController* PC)
+UPlayerSubmarineHUDWidget* AShellPawn::EnsureCockpitHUD(APlayerController* PC)
 {
-	if (!PC || !PC->IsLocalController())
-	{
-		return;
-	}
-	if (!CockpitHUD)
+	if (!CockpitHUD && PC && PC->IsLocalController())
 	{
 		UClass* WidgetClass = HUDWidgetClass ? HUDWidgetClass.Get() : UPlayerSubmarineHUDWidget::StaticClass();
 		CockpitHUD = CreateWidget<UPlayerSubmarineHUDWidget>(PC, WidgetClass);
-		if (!CockpitHUD)
+		if (CockpitHUD)
 		{
-			return;
+			CockpitHUD->AddToViewport(HUDZOrder);
+			CockpitHUD->SetVisibility(ESlateVisibility::Collapsed);
 		}
-		CockpitHUD->AddToViewport(HUDZOrder);
+	}
+	return CockpitHUD;
+}
+
+void AShellPawn::SetCockpitHUDVisible(bool bVisible)
+{
+	if (bVisible)
+	{
+		ShowCockpitHUD(Cast<APlayerController>(GetController()));
+	}
+	else if (CockpitHUD)
+	{
+		CockpitHUD->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void AShellPawn::ShowCockpitHUD(APlayerController* PC)
+{
+	if (!PC || !PC->IsLocalController() || !EnsureCockpitHUD(PC))
+	{
+		return;
 	}
 	CockpitHUD->SetVisibility(ESlateVisibility::HitTestInvisible);
 	CockpitHUD->BindToShell(this);
@@ -754,9 +922,14 @@ void AShellPawn::PushTerminalLog(const FString& Source, const FString& Message, 
 // ==================================================================================================
 // Telemetry
 // ==================================================================================================
+float AShellPawn::GetOceanSurfaceZ() const
+{
+	return FluidPhysics ? FluidPhysics->GetOceanSurfaceZ() : 0.f;
+}
+
 float AShellPawn::GetDepthMeters() const
 {
-	return FMath::Max(0.f, float(OceanSurfaceZ - GetActorLocation().Z) / 100.f);
+	return FMath::Max(0.f, float(GetOceanSurfaceZ() - GetActorLocation().Z) / 100.f);
 }
 
 float AShellPawn::GetHeadingDegrees() const
@@ -891,4 +1064,49 @@ void AShellPawn::FinishRecovery(const FTransform& ParkingTransform)
 		Energy->RestoreEnergy(RecoveryEnergyFraction);
 	}
 	SetLightsLevel(Cast<APlayerController>(GetController()) ? 1.f : 0.f, false);
+}
+
+// ==================================================================================================
+// LARS cradle
+// ==================================================================================================
+void AShellPawn::EnterLARSCradle()
+{
+	bInLARSCradle = true;
+	if (BoxRoot)
+	{
+		if (BoxRoot->IsSimulatingPhysics())
+		{
+			BoxRoot->SetPhysicsLinearVelocity(FVector::ZeroVector);
+			BoxRoot->SetPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
+		}
+		BoxRoot->SetSimulatePhysics(false);
+	}
+	CurrentThrustScalar = 0.f;
+	CurrentBallastForce = 0.f;
+	SetBlockControls(true);
+}
+
+void AShellPawn::LeaveLARSCradle()
+{
+	bInLARSCradle = false;
+	if (BoxRoot && !BoxRoot->IsSimulatingPhysics())
+	{
+		BoxRoot->SetSimulatePhysics(true);
+		BoxRoot->SetPhysicsLinearVelocity(FVector::ZeroVector);
+		BoxRoot->SetPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
+	}
+}
+
+void AShellPawn::GrantPilotControl()
+{
+	if (bInLARSCradle)
+	{
+		LeaveLARSCradle();
+	}
+	SetBlockControls(false);
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		ShowCockpitHUD(PC);
+		PushTerminalLog(TEXT("lars"), TEXT("cradle clear - 6DOF control online"), EAOSHudLogSeverity::Info);
+	}
 }

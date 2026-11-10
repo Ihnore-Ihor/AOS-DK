@@ -293,6 +293,7 @@ void AAOSMarineSnowField::Tick(float DeltaSeconds)
 		bVisibleUnderwater = bUnderwater;
 		Mesh->SetVisibility(bUnderwater);
 		bHasPrevCamera = false;
+		SmoothedCameraVelocity = FVector::ZeroVector; // no stale streaks after resurfacing / teleport
 	}
 	if (!bUnderwater)
 	{
@@ -311,13 +312,13 @@ void AAOSMarineSnowField::Tick(float DeltaSeconds)
 	// orbits as the Shell, so bobbing on the swell produces no streaks. Teleports (> 30 m/s) are ignored.
 	if (bHasPrevCamera && DeltaSeconds > KINDA_SMALL_NUMBER)
 	{
-		FVector Velocity = (Cam - PrevCameraLocation) / DeltaSeconds;
-		if (Velocity.SizeSquared() > FMath::Square(3000.f))
+		const FVector Velocity = (Cam - PrevCameraLocation) / DeltaSeconds;
+		// A teleport (> 30 m/s) keeps the previous value instead of injecting a -v_water spike.
+		if (Velocity.SizeSquared() <= FMath::Square(3000.f))
 		{
-			Velocity = FVector::ZeroVector;
+			const FVector Relative = Velocity - ComputeWaterOrbitalVelocity(Cam, WaveTime);
+			SmoothedCameraVelocity = FMath::VInterpTo(SmoothedCameraVelocity, Relative, DeltaSeconds, VelocitySmoothing);
 		}
-		Velocity -= ComputeWaterOrbitalVelocity(Cam, WaveTime);
-		SmoothedCameraVelocity = FMath::VInterpTo(SmoothedCameraVelocity, Velocity, DeltaSeconds, VelocitySmoothing);
 	}
 	PrevCameraLocation = Cam;
 	bHasPrevCamera = true;
