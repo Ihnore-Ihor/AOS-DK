@@ -4,10 +4,14 @@
 #include "AOS_DK/Submarine/Subdrones/Attacker/TorpedoReloadPolicy.h"
 #include "AOS_DK/Submarine/Subdrones/Core/SubDroneBayComponent.h"
 #include "AOS_DK/Submarine/Subdrones/Core/SubDroneMath.h"
+#include "AOS_DK/Enemies/Reaper/AOS_CombatThreatSubsystem.h"
+#include "Perception/AISense_Hearing.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 #include "NiagaraComponent.h"
 
 using namespace SubDroneMath;
@@ -94,7 +98,8 @@ void ASubDrone_Attacker::BeginPlay()
 	}
 	InternalReserveAmmo = bStartWithFullAmmo ? GetReserveCapacity() : 0;
 
-	for (int32 Index = 0; Index < PoolPrewarmCount; ++Index)
+	// The first few right away; the rest + the effect warm-up are sliced over later frames (TickPoolWarmup).
+	for (int32 Index = 0; Index < FMath::Min(PoolPrewarmCount, PoolImmediateCount); ++Index)
 	{
 		SpawnPooledTorpedo();
 	}
@@ -216,6 +221,8 @@ void ASubDrone_Attacker::Tick(float DeltaSeconds)
 	{
 		return;
 	}
+
+	TickPoolWarmup(DeltaSeconds);
 
 	// Aim only when it matters: armed (nose tracks the crosshair) or trigger held.
 	if (GetDeployBlend() > 0.01f || bTriggerHeld)
@@ -543,7 +550,7 @@ void ASubDrone_Attacker::TickVisuals(float Dt)
 	}
 
 	// NS_CoreVortex: vapour-gas ring only while winding up / attacking.
-	if (CavityFX->GetAsset())
+	if (CavityFX->GetAsset() && !bVortexWarming)
 	{
 		const bool bWant = GetMobilityState() == ESubDroneMobilityState::Deployed && SpinAlpha > CavityFXActivationAlpha;
 		if (bWant != CavityFX->IsActive())
@@ -632,6 +639,13 @@ void ASubDrone_Attacker::FireOnce()
 	const FVector Target = bHasAimPoint ? AimPoint : GetActorLocation() + GetActorForwardVector() * 3000.f;
 	Torpedo->Launch(SlotWorld, ReleaseRot, ReleaseVel, Target, AimActor.Get());
 
+	// Lab 5: salvo -> evasion model of the Reapers, and the launch noise for AI hearing.
+	if (UAOS_CombatThreatSubsystem* Threats = World->GetSubsystem<UAOS_CombatThreatSubsystem>())
+	{
+		Threats->ReportTorpedoLaunch(Torpedo, GetOwner(), SlotWorld, Target, AimActor.Get());
+	}
+	UAISense_Hearing::ReportNoiseEvent(World, SlotWorld, 1.0f, GetOwner(), 4500.f, TEXT("TorpedoLaunch"));
+
 	LastShotTime = World->GetTimeSeconds();
 	Heat += HeatPerShot;
 	if (Heat >= 1.f)
@@ -659,6 +673,81 @@ AMicroTorpedo* ASubDrone_Attacker::AcquireTorpedo()
 		}
 	}
 	return TorpedoPool.Num() < MaxPoolSize ? SpawnPooledTorpedo() : nullptr;
+}
+
+void ASubDrone_Attacker::TickPoolWarmup(float Dt)
+{
+	if (bPoolWarmupDone)
+	{
+		return;
+	}
+	// 1) Finish the pool in small slices (no spawn spike at BeginPlay, none during fire).
+	if (TorpedoPool.Num() < PoolPrewarmCount)
+	{
+		for (int32 Count = 0; Count < PoolSpawnPerFrame && TorpedoPool.Num() < PoolPrewarmCount; ++Count)
+		{
+			if (!SpawnPooledTorpedo())
+			{
+				break;
+			}
+		}
+		return;
+	}
+	// 2) Invisible draw of every torpedo visual, one torpedo per frame: PSOs, Niagara simulations and
+	//    per-component render state are created now instead of on the first shot.
+	PoolWarmupClock += Dt;
+	if (PoolWarmupClock < PoolWarmupDelay)
+	{
+		return;
+	}
+	// The engine only draws what the camera sees, so the warm-up pieces are parked 1.5 m in front of the active camera
+	// (microscopic and at zero intensity, nothing visible). No camera yet -> try again next frame.
+	const APlayerCameraManager* Cam = UGameplayStatics::GetPlayerCameraManager(this, 0);
+	if (!Cam)
+	{
+		return;
+	}
+	const FVector WarmLoc = Cam->GetCameraLocation() + Cam->GetCameraRotation().Vector() * 150.0;
+	if (PoolWarmupIndex < TorpedoPool.Num())
+	{
+		if (AMicroTorpedo* Torpedo = TorpedoPool[PoolWarmupIndex])
+		{
+			Torpedo->BeginWarmup(/*bSpawnImpactFx*/ PoolWarmupIndex == 0, WarmLoc);
+		}
+		++PoolWarmupIndex;
+		return;
+	}
+	// 3) NS_CoreVortex: otherwise its first activation and first particle draw (~70 ms render thread) hit the first wind-up.
+	//    Emits at microscopic scale for VortexWarmupFrames frames (the cost lands ~6 frames after Activate), then is cleared.
+	if (VortexWarmupFrame < VortexWarmupFrames)
+	{
+		if (!CavityFX->GetAsset() || (VortexWarmupFrame == 0 && CavityFX->IsActive()))
+		{
+			VortexWarmupFrame = VortexWarmupFrames; // nothing to warm / combat already started
+			return;
+		}
+		if (VortexWarmupFrame == 0 && GetMobilityState() != ESubDroneMobilityState::Deployed)
+		{
+			return; // wait for the first deploy: the effect is first used in the water, warm it in the same context
+		}
+		if (VortexWarmupFrame == 0)
+		{
+			// Real scale, in place, in the water (tiny-scale / camera-parked warm-ups did not remove the first-wind-up stall):
+			// a brief faint vapour puff on the drone while it deploys instead of a 65 ms hitch on the first shot.
+			CavityFX->SetVariableFloat(AttackerFx::VortexRate, VortexMaxRate * 0.3f);
+			CavityFX->Activate(true);
+			bVortexWarming = true;
+		}
+		if (++VortexWarmupFrame >= VortexWarmupFrames)
+		{
+			CavityFX->DeactivateImmediate();
+			LastVortexRate = -1.f;
+			bVortexWarming = false;
+		}
+		return;
+	}
+	bPoolWarmupDone = true;
+	UE_LOG(LogSubDrone, Log, TEXT("%s torpedo pool ready: %d pooled, effects warmed"), *GetName(), TorpedoPool.Num());
 }
 
 AMicroTorpedo* ASubDrone_Attacker::SpawnPooledTorpedo()

@@ -4,6 +4,7 @@
 #include "GameFramework/Pawn.h"
 #include "AOS_DK/Core/Interfaces/Interactions/Interactable.h"
 #include "AOS_DK/Core/UI/HUD/AOSHudTypes.h"
+#include "Perception/AISightTargetInterface.h"
 #include "ShellPawn.generated.h"
 
 class UBoxComponent;
@@ -20,11 +21,12 @@ class UNiagaraSystem;
 class AShellDock;
 class APlayerController;
 class UInputAction;
+class UAIPerceptionStimuliSourceComponent;
 class UInputMappingContext;
 struct FInputActionValue;
 
 UCLASS()
-class AOS_DK_API AShellPawn : public APawn, public IInteractable
+class AOS_DK_API AShellPawn : public APawn, public IInteractable, public IAISightTargetInterface
 {
 	GENERATED_BODY()
 
@@ -38,6 +40,19 @@ public:
 	virtual void Interact_Implementation(AActor* InstigatorActor) override;
 
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
+	// --- AI perception (Lab 5): Shell-1 is a sight + hearing stimulus source ---------------------------------------------------
+	/** Probes 3 hull points (nose, centre, tail). Running dark (headlights off, no boost): not visible beyond RunningDarkVisibilityRadius. */
+	virtual UAISense_Sight::EVisibilityResult CanBeSeenFrom(const FCanBeSeenFromContext& Context, FVector& OutSeenLocation, int32& OutNumberOfLoSChecksPerformed,
+		int32& OutNumberOfAsyncLosCheckRequested, float& OutSightStrength, int32* UserData = nullptr, const FOnPendingVisibilityQueryProcessedDelegate* Delegate = nullptr) override;
+
+	/** Cockpit lights are powered and the left headlight is lit. */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Shell|Stealth")
+	bool AreHeadlightsOn() const;
+
+	/** Boost is being held (loud and bright: breaks stealth). */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Shell|Stealth")
+	bool IsBoostActive() const { return bBoostHeld; }
 
 	/** Mean sea level, owned by the fluid physics component. */
 	float GetOceanSurfaceZ() const;
@@ -146,6 +161,21 @@ protected:
 	/** Core energy = hull integrity + power budget. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UShellEnergyComponent> Energy;
+
+	/** Registers the Shell as a stimulus source for AI sight and hearing. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AOS_DK|AI")
+	TObjectPtr<UAIPerceptionStimuliSourceComponent> StimuliSource;
+
+	/** Stealth: with headlights off and no boost the Shell is visible only inside this distance (13 m). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|AI", meta = (ClampMin = "0", Units = "cm"))
+	float RunningDarkVisibilityRadius = 1300.f;
+
+	/** Engine noise: MaxRange = EngineNoiseMaxRange * L, L = 0.15 + 0.55 thrust + 0.30 boost; reported at 4 Hz while L > threshold. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|AI", meta = (ClampMin = "0", Units = "cm"))
+	float EngineNoiseMaxRange = 4000.f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|AI", meta = (ClampMin = "0", ClampMax = "1"))
+	float EngineNoiseThreshold = 0.2f;
 
 	/** Cabin light (dims / turns into a red emergency strobe on Kernel Panic). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -339,6 +369,7 @@ private:
 	void UpdateHeadlightDimming(float DeltaTime);
 	bool IsHeadlight(const ULightComponent* Light) const;
 	void UpdateEnergyLoads();
+	void ReportEngineNoise(float DeltaTime);
 	void UpdateCameraGlitch(float DeltaTime);
 	/** Hands the lens back to the level post-process (no leftover fringe / grain). */
 	void ResetCameraPostProcess();
@@ -377,6 +408,7 @@ private:
 	float HeadlightDim = 1.f;
 	float HeadlightDimTarget = 1.f;
 	float BeamProbeTimer = 0.f;
+	float NoiseTimer = 0.f;
 	FTimerHandle RecoveryTimer;
 	TWeakObjectPtr<APlayerController> RecoveryController;
 	TWeakObjectPtr<AShellDock> HomeDock;

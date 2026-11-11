@@ -166,6 +166,7 @@ void UPlayerSubmarineHUDWidget::BindToShell(AShellPawn* InShell)
 	{
 		BoundBay = Bay;
 		Bay->OnReloadRequested.AddDynamic(this, &UPlayerSubmarineHUDWidget::HandleDroneReload);
+		Bay->OnProjectileImpact.AddDynamic(this, &UPlayerSubmarineHUDWidget::HandleProjectileImpact);
 	}
 	// The HUD is pooled: it was hidden mid-animation (e.g. during the Kernel Panic) and hidden widgets
 	// do not tick, so wipe that state before the first frame of the new session is painted.
@@ -231,6 +232,7 @@ void UPlayerSubmarineHUDWidget::UnbindFromShell()
 	if (USubDroneBayComponent* Bay = BoundBay.Get())
 	{
 		Bay->OnReloadRequested.RemoveDynamic(this, &UPlayerSubmarineHUDWidget::HandleDroneReload);
+		Bay->OnProjectileImpact.RemoveDynamic(this, &UPlayerSubmarineHUDWidget::HandleProjectileImpact);
 	}
 	BoundEnergy.Reset();
 	BoundBay.Reset();
@@ -306,6 +308,14 @@ void UPlayerSubmarineHUDWidget::HandleEnergyRestored(float NewFraction)
 		ResetTransientState(*ShellPtr);
 	}
 	PushLog(TEXT("kernel"), FString::Printf(TEXT("reboot complete - core %d%%"), FMath::RoundToInt(NewFraction * 100.f)), EAOSHudLogSeverity::System);
+}
+
+void UPlayerSubmarineHUDWidget::HandleProjectileImpact(ASubDroneBase* Drone, ESubDroneImpactKind Kind, FVector Location, float Damage)
+{
+	if (Crosshair)
+	{
+		Crosshair->PulseHit(Kind);
+	}
 }
 
 void UPlayerSubmarineHUDWidget::HandleDroneReload(ASubDroneBase* Drone, ESubDroneReloadResult Result, float EnergyCostPercent)

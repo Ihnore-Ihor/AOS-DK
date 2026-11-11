@@ -257,8 +257,23 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Weapon", meta = (Units = "Degrees"))
 	float MuzzleStepDegrees = 137.50776f;
 
+	/**
+	 * Torpedoes created ahead of time. A sustained burst (12/s, ~1.5 s flight + 1.2 s linger) needs ~20 at once;
+	 * anything not pooled is spawned INSIDE FireOnce (an actor + Niagara + 4 components = a visible hitch).
+	 */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Weapon", meta = (ClampMin = "0"))
-	int32 PoolPrewarmCount = 8;
+	int32 PoolPrewarmCount = 24;
+
+	/** Spawned synchronously at BeginPlay; the rest of the prewarm is sliced over frames (PoolSpawnPerFrame). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Weapon", meta = (ClampMin = "0"))
+	int32 PoolImmediateCount = 6;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Weapon", meta = (ClampMin = "1"))
+	int32 PoolSpawnPerFrame = 2;
+
+	/** Wait after BeginPlay before the invisible effect warm-up starts (level-load spikes are over). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Weapon", meta = (ClampMin = "0", Units = "s"))
+	float PoolWarmupDelay = 0.75f;
 
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Weapon", meta = (ClampMin = "1"))
 	int32 MaxPoolSize = 48;
@@ -344,6 +359,8 @@ private:
 	int32 PickReleaseSlot();
 	AMicroTorpedo* AcquireTorpedo();
 	AMicroTorpedo* SpawnPooledTorpedo();
+	/** Slices pool growth + the invisible effect warm-up over frames so the first real shot costs nothing. */
+	void TickPoolWarmup(float Dt);
 
 	EAttackerCombatState CombatState = EAttackerCombatState::Idle;
 	float CombatStateTime = 0.f;
@@ -387,4 +404,13 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AMicroTorpedo>> TorpedoPool;
+
+	float PoolWarmupClock = 0.f;
+	int32 PoolWarmupIndex = 0;
+	bool bPoolWarmupDone = false;
+
+	/** NS_CoreVortex warm-up (microscopic, emitting): its first particle draw costs ~70 ms of render-thread time, ~6 frames after Activate. */
+	static constexpr int32 VortexWarmupFrames = 20;
+	int32 VortexWarmupFrame = 0;
+	bool bVortexWarming = false;
 };

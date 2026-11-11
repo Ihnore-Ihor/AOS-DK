@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "AOS_DK/Core/UI/HUD/AOSHudElement.h"
+#include "AOS_DK/Submarine/Subdrones/Core/SubDroneTypes.h"
 #include "HudCrosshair.generated.h"
 
 /**
@@ -29,6 +30,13 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "AOS_DK|HUD")
 	void SetDimmed(bool bInDimmed) { bDimmed = bInDimmed; }
+
+	/**
+	 * Hit confirmation: four diagonal ticks burst away from the centre (X marker). Target = large, white to
+	 * pink; Surface = small cyan; Expired (nothing hit) = no marker.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "AOS_DK|HUD")
+	void PulseHit(ESubDroneImpactKind Kind);
 
 	virtual void AdvanceHud(float DeltaSeconds) override;
 	virtual void ResetHud() override;
@@ -63,6 +71,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|HUD|Crosshair", meta = (ClampMin = "4"))
 	float PromptSize = 12.f;
 
+	/** Lifetime of the hit marker (s). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|HUD|Crosshair", meta = (ClampMin = "0.05", Units = "s"))
+	float HitMarkerDuration = 0.34f;
+
 private:
 	bool bLocked = false;
 	bool bDimmed = false;
@@ -70,6 +82,9 @@ private:
 	float DistanceMeters = 0.f;
 	float HealthFraction = -1.f;
 	float DimAlpha = 0.f;
+
+	float HitAlpha = 0.f;
+	ESubDroneImpactKind HitKind = ESubDroneImpactKind::Expired;
 
 	bool bPrompt = false;
 	bool bPromptAvailable = true;

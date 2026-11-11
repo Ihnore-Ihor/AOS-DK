@@ -31,9 +31,25 @@ void UAOSHudCrosshair::SetInteractPrompt(bool bInShow, const FText& InAction, bo
 	}
 }
 
+void UAOSHudCrosshair::PulseHit(ESubDroneImpactKind Kind)
+{
+	if (Kind == ESubDroneImpactKind::Expired)
+	{
+		return;
+	}
+	// A weak surface hit never cuts short a target-hit marker that is still showing.
+	if (Kind == ESubDroneImpactKind::Surface && HitKind == ESubDroneImpactKind::Target && HitAlpha > 0.5f)
+	{
+		return;
+	}
+	HitKind = Kind;
+	HitAlpha = 1.f;
+}
+
 void UAOSHudCrosshair::AdvanceHud(float DeltaSeconds)
 {
 	Super::AdvanceHud(DeltaSeconds);
+	HitAlpha = FMath::Max(0.f, HitAlpha - DeltaSeconds / FMath::Max(0.05f, HitMarkerDuration));
 	LockAlpha = AOSHudMath::Approach(LockAlpha, bLocked ? 1.f : 0.f, LockSpeed, DeltaSeconds);
 	DimAlpha = AOSHudMath::Approach(DimAlpha, bDimmed ? 1.f : 0.f, 8.f, DeltaSeconds);
 	PromptAlpha = AOSHudMath::Approach(PromptAlpha, (bPrompt && !bLocked) ? 1.f : 0.f, 12.f, DeltaSeconds);
@@ -43,6 +59,7 @@ void UAOSHudCrosshair::ResetHud()
 {
 	bLocked = false;
 	LockAlpha = 0.f;
+	HitAlpha = 0.f;
 	bDimmed = false;
 	DimAlpha = 0.f;
 	HealthFraction = -1.f;
@@ -73,6 +90,30 @@ void UAOSHudCrosshair::PaintHud(FAOSHudPainter& P) const
 
 	// Dot (+ faint halo when locked).
 	P.FillCircle(C, FMath::Lerp(2.2f, 2.6f, L), Color, 16);
+
+	// Hit marker: X ticks bursting outwards, dark underlay for contrast against bright water / flashes.
+	if (HitAlpha > 0.01f && HitKind != ESubDroneImpactKind::Expired)
+	{
+		const bool bTarget = HitKind == ESubDroneImpactKind::Target;
+		const float T = 1.f - HitAlpha;                              // 0 -> 1 over the pulse
+		const float Burst = 1.f - FMath::Square(1.f - T);            // fast start, soft end
+		const float Inner = bTarget ? FMath::Lerp(9.f, 17.f, Burst) : FMath::Lerp(8.f, 12.f, Burst);
+		const float Outer = Inner + (bTarget ? 14.f : 7.f);
+		const float Thick = bTarget ? 2.6f : 1.6f;
+		const float A = FMath::Min(1.f, HitAlpha * 1.6f);
+		const FLinearColor Hot = bTarget ? AOSDracula::Mix(AOSDracula::Foreground(), AOSDracula::Pink(), Burst) : AOSDracula::Cyan();
+		const FLinearColor HitColor = AOSDracula::WithAlpha(Hot, A * Alpha);
+		const FLinearColor Under = AOSDracula::WithAlpha(AOSDracula::Background(), 0.7f * A * Alpha);
+		for (const float Sx : { -1.f, 1.f })
+		{
+			for (const float Sy : { -1.f, 1.f })
+			{
+				const FVector2f D(Sx * 0.7071f, Sy * 0.7071f);
+				P.Line(C + D * (Inner - 1.f), C + D * (Outer + 1.f), Under, Thick + 2.2f);
+				P.Line(C + D * Inner, C + D * Outer, HitColor, Thick);
+			}
+		}
+	}
 	if (L > 0.01f)
 	{
 		P.StrokeCircle(C, 7.f + 2.f * L, AOSDracula::WithAlpha(LockColor, 0.35f * L * Alpha), 1.f, 24);

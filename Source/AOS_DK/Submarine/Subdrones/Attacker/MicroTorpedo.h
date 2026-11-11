@@ -3,9 +3,11 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Engine/EngineTypes.h"
+#include "AOS_DK/Submarine/Subdrones/Core/SubDroneTypes.h"
 #include "MicroTorpedo.generated.h"
 
 class UStaticMeshComponent;
+class UPointLightComponent;
 class UNiagaraComponent;
 class UNiagaraSystem;
 class UDamageType;
@@ -107,10 +109,30 @@ public:
 		const FVector& TargetPoint, AActor* InTargetActor);
 
 	bool IsInFlight() const { return bInFlight; }
-	bool IsAvailableForReuse(double Now) const { return !bInFlight && Now >= ReuseAvailableTime; }
+	bool IsAvailableForReuse(double Now) const { return !bInFlight && !bWarming && Now >= ReuseAvailableTime; }
+
+	/**
+	 * First-use cost eater. Draws every visual of the torpedo (body, tracer, flash, ring, trail and
+	 * impact Niagara) for a few frames at ~zero size, so material PSOs, Niagara system simulations and
+	 * per-component render state exist BEFORE the first real shot. Called once per pooled torpedo by the
+	 * drone, a few at a time, shortly after the level starts. No-op while in flight.
+	 */
+	void BeginWarmup(bool bSpawnImpactFx, const FVector& WorldLocation);
 
 	UFUNCTION(BlueprintPure, Category = "AOS_DK|Torpedo")
 	bool IsCavitating() const { return bCavitating; }
+
+	/** Actor currently steered at (null = a fixed point). Read by the AI threat model. */
+	AActor* GetAimActor() const { return TargetActor.Get(); }
+
+	/** Current guidance point in world space. */
+	FVector GetGuidancePoint() const { FVector V; return GetGuidanceTarget(V); }
+
+	/**
+	 * Countermeasure hook (Lab 5): replaces the aim actor and target point used by the proportional-navigation guidance.
+	 * Flight state, fuse and pooling stay unchanged; guidance reads the new target on the next sub-step.
+	 */
+	void Retarget(AActor* NewAimActor, const FVector& NewPoint);
 
 protected:
 	virtual void BeginPlay() override;
@@ -151,6 +173,70 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AOS_DK|Torpedo|FX")
 	TObjectPtr<UNiagaraSystem> ImpactFX;
 
+	/** Uniform scale of the impact Niagara burst (the authored bubbles are tiny next to a 150 cm flash). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|FX", meta = (ClampMin = "0.1"))
+	float ImpactFxScale = 2.5f;
+
+	// --- Visibility: tracer streak (additive, HDR) along the flight path ------------------------------------
+	/** Stretched emissive cylinder behind the nose. Material set in BP_MicroTorpedo (M_FX_TorpedoTracer). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UStaticMeshComponent> TracerMesh;
+
+	/** Tracer thickness (cm). The 11 cm / 3 cm needle itself is far below one pixel at combat range. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Visibility", meta = (ClampMin = "0.1", Units = "cm"))
+	float TracerWidth = 9.f;
+
+	/** Streak length = speed * this (motion-blur style), clamped to [TracerMinLength, TracerMaxLength]. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Visibility", meta = (ClampMin = "0", Units = "s"))
+	float TracerLengthSeconds = 0.05f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Visibility", meta = (ClampMin = "1", Units = "cm"))
+	float TracerMinLength = 45.f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Visibility", meta = (ClampMin = "1", Units = "cm"))
+	float TracerMaxLength = 480.f;
+
+	// --- Impact feedback: flash + shockwave ring + short light (pooled with the torpedo) ----------------------
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UStaticMeshComponent> ImpactFlashMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UStaticMeshComponent> ImpactRingMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UPointLightComponent> ImpactLight;
+
+	/** Must stay <= TrailLingerTime (the torpedo is reused after max(TrailLingerTime, ImpactDuration)). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Impact", meta = (ClampMin = "0.05", Units = "s"))
+	float ImpactDuration = 0.5f;
+
+	/** Radius of the flash sphere at full growth for a TARGET hit (surface hits use SurfaceImpactScale of it). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Impact", meta = (ClampMin = "1", Units = "cm"))
+	float ImpactFlashRadius = 55.f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Impact", meta = (ClampMin = "1", Units = "cm"))
+	float ImpactRingRadius = 190.f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Impact", meta = (ClampMin = "0.05"))
+	float SurfaceImpactScale = 0.65f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Impact", meta = (ClampMin = "0.05"))
+	float ExpiredImpactScale = 0.3f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Impact")
+	float ImpactLightIntensity = 6000.f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Impact", meta = (ClampMin = "1", Units = "cm"))
+	float ImpactLightRadius = 650.f;
+
+	/** Hit on a damageable fuse target (hot pink-white, the Dracula lock colour). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Impact")
+	FLinearColor TargetImpactColor = FLinearColor(1.f, 0.28f, 0.62f, 1.f);
+
+	/** Hit on level geometry / anything not hostile (cool cyan-white). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|Impact")
+	FLinearColor SurfaceImpactColor = FLinearColor(0.35f, 0.95f, 1.f, 1.f);
+
 	/** Time the actor stays parked after impact so the world-space bubble trail can fade. */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Torpedo|FX", meta = (ClampMin = "0", Units = "s"))
 	float TrailLingerTime = 1.2f;
@@ -169,6 +255,14 @@ private:
 	FVector GetGuidanceTarget(FVector& OutTargetVelocity) const;
 	void Detonate(const FHitResult& Hit, bool bHitSomething);
 	void Retire();
+
+	void UpdateTracer(float Speed, float Brightness);
+	void StartImpact(const FVector& Location, const FVector& Normal, ESubDroneImpactKind Kind);
+	void TickImpact(float DeltaSeconds);
+	void EndImpact();
+	void TickWarmup();
+	void EndWarmup();
+	void UpdateTickState();
 	bool IsFuseTarget(const AActor* Actor) const;
 	/** Earliest fuse target touched by a sphere of ProximityFuseRadius swept along this frame's path. */
 	bool FindProximityHit(const FVector& From, const FVector& To, const FCollisionQueryParams& Params, FHitResult& OutHit) const;
@@ -182,6 +276,16 @@ private:
 	bool bCavitating = false;
 	double ReuseAvailableTime = 0.0;
 	float LastSheathRate = -1.f;
+
+	/** Seconds since the impact flash started; < 0 = no impact animation running. */
+	float ImpactAge = -1.f;
+	ESubDroneImpactKind ImpactKind = ESubDroneImpactKind::Surface;
+	float ImpactScale = 1.f;
+
+	bool bWarming = false;
+	int32 WarmupFramesLeft = 0;
+	FVector WarmupSavedScale = FVector::OneVector;
+	FVector WarmupSavedLocation = FVector::ZeroVector;
 
 	FVector TargetPointWorld = FVector::ZeroVector;
 	FVector TargetLocalOffset = FVector::ZeroVector;

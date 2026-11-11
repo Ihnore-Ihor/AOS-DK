@@ -35,6 +35,7 @@ struct FSubDroneSlot
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSubDroneSpawned, ASubDroneBase*, Drone, int32, SlotIndex);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnSubDroneReloadRequested, ASubDroneBase*, Drone, ESubDroneReloadResult, Result, float, EnergyCostPercent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnSubDroneProjectileImpact, ASubDroneBase*, Drone, ESubDroneImpactKind, Kind, FVector, Location, float, Damage);
 
 /**
  * Lives on the Shell (AShellPawn::DroneBay). Owns the drone processes, routes Shell input
@@ -123,6 +124,15 @@ public:
 	/** Result of every manual reload request (HUD terminal log, audio). */
 	UPROPERTY(BlueprintAssignable, Category = "AOS_DK|Drones")
 	FOnSubDroneReloadRequested OnReloadRequested;
+
+	/** A projectile of one of the drones ended (hit / surface / expired): HUD hit-marker, audio. */
+	UPROPERTY(BlueprintAssignable, Category = "AOS_DK|Drones")
+	FOnSubDroneProjectileImpact OnProjectileImpact;
+
+	void NotifyProjectileImpact(ASubDroneBase* Drone, ESubDroneImpactKind Kind, const FVector& Location, float Damage)
+	{
+		OnProjectileImpact.Broadcast(Drone, Kind, Location, Damage);
+	}
 
 protected:
 	virtual void BeginPlay() override;

@@ -35,6 +35,15 @@ enum class ESubDroneReloadResult : uint8
 	NoPower      UMETA(DisplayName = "Insufficient power")  // the Shell core cannot pay the reload
 };
 
+/** What a module projectile ended on (hit feedback: crosshair marker, impact flash). */
+UENUM(BlueprintType)
+enum class ESubDroneImpactKind : uint8
+{
+	Expired UMETA(DisplayName = "Expired"),   // fuel / lifetime ran out in open water: nothing was hit
+	Surface UMETA(DisplayName = "Surface"),   // struck level geometry / a non-hostile body
+	Target  UMETA(DisplayName = "Target")     // struck (or proximity-fused on) a damageable fuse target
+};
+
 /** Motion feel of one mobility mode. Distances in cm, times in seconds. */
 USTRUCT(BlueprintType)
 struct FSubDroneMotionProfile

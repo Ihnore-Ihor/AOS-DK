@@ -26,6 +26,9 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
 #include "TimerManager.h"
+#include "Perception/AIPerceptionStimuliSourceComponent.h"
+#include "Perception/AISense_Sight.h"
+#include "Perception/AISense_Hearing.h"
 
 AShellPawn::AShellPawn()
 {
@@ -63,6 +66,9 @@ AShellPawn::AShellPawn()
 
 	DroneBay = CreateDefaultSubobject<USubDroneBayComponent>(TEXT("DroneBay"));
 	Energy = CreateDefaultSubobject<UShellEnergyComponent>(TEXT("Energy"));
+
+	// AI: Shell-1 is the only stimulus source Reapers care about (sight + hearing).
+	StimuliSource = CreateDefaultSubobject<UAIPerceptionStimuliSourceComponent>(TEXT("StimuliSource"));
 
 	// Cabin light: soft, close to the canopy, turns into the red emergency strobe on Kernel Panic.
 	CabinLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("CabinLight"));
@@ -102,6 +108,13 @@ AShellPawn::AShellPawn()
 void AShellPawn::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (StimuliSource)
+	{
+		StimuliSource->RegisterForSense(UAISense_Sight::StaticClass());
+		StimuliSource->RegisterForSense(UAISense_Hearing::StaticClass());
+		StimuliSource->RegisterWithPerceptionSystem();
+	}
 	TargetBallastForce = 0.f;
 	CurrentBallastForce = 0.f;
 	bIsStabilizing = false;
@@ -521,6 +534,7 @@ void AShellPawn::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 	UpdateHydrodynamics(DeltaTime);
 	UpdateEnergyLoads();
+	ReportEngineNoise(DeltaTime);
 	UpdateLights(DeltaTime);
 	UpdateHeadlightDimming(DeltaTime);
 	UpdateCameraGlitch(DeltaTime);
@@ -756,6 +770,74 @@ void AShellPawn::SetLightsLevel(float Level, bool bEmergencyRed)
 			Light->SetIntensity(Cached.BaseIntensity * Level * (IsHeadlight(Light) ? HeadlightDim : 1.f));
 		}
 		Light->SetVisibility(Level > 0.001f);
+	}
+}
+
+// ==================================================================================================
+// AI perception (Lab 5)
+// ==================================================================================================
+bool AShellPawn::AreHeadlightsOn() const
+{
+	// Auto-dimming (HeadlightDim) is an anti-glare effect, not a switch: only power / visibility counts.
+	return HeadlightLeft && HeadlightLeft->IsVisible() && LightsLevel > 0.1f;
+}
+
+UAISense_Sight::EVisibilityResult AShellPawn::CanBeSeenFrom(const FCanBeSeenFromContext& Context, FVector& OutSeenLocation, int32& OutNumberOfLoSChecksPerformed,
+	int32& OutNumberOfAsyncLosCheckRequested, float& OutSightStrength, int32* UserData, const FOnPendingVisibilityQueryProcessedDelegate* Delegate)
+{
+	OutNumberOfAsyncLosCheckRequested = 0;
+	OutNumberOfLoSChecksPerformed = 0;
+	OutSightStrength = 0.f;
+
+	UWorld* World = GetWorld();
+	if (!World || bInLARSCradle)
+	{
+		return UAISense_Sight::EVisibilityResult::NotVisible;
+	}
+
+	const FVector Loc = GetActorLocation();
+	// Running dark: lights off and no boost -> only a short-range silhouette.
+	if (!AreHeadlightsOn() && !bBoostHeld
+		&& FVector::DistSquared(Context.ObserverLocation, Loc) > FMath::Square(RunningDarkVisibilityRadius))
+	{
+		return UAISense_Sight::EVisibilityResult::NotVisible;
+	}
+
+	const FVector Forward = GetActorForwardVector();
+	const FVector Probes[3] = { Loc + Forward * 180.f, Loc, Loc - Forward * 180.f };   // nose, centre, tail
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ShellSightProbe), true, Context.IgnoreActor);
+	Params.AddIgnoredActor(this);
+	for (const FVector& Probe : Probes)
+	{
+		++OutNumberOfLoSChecksPerformed;
+		if (!World->LineTraceTestByChannel(Context.ObserverLocation, Probe, ECC_Visibility, Params))
+		{
+			OutSeenLocation = Probe;
+			OutSightStrength = 1.f;
+			return UAISense_Sight::EVisibilityResult::Visible;
+		}
+	}
+	return UAISense_Sight::EVisibilityResult::NotVisible;
+}
+
+void AShellPawn::ReportEngineNoise(float DeltaTime)
+{
+	NoiseTimer += DeltaTime;
+	if (NoiseTimer < 0.25f)
+	{
+		return;
+	}
+	NoiseTimer = 0.f;
+	if (bSystemsHalted || bInLARSCradle || !GetController())
+	{
+		return;
+	}
+	const float Thrust01 = FMath::Clamp(FMath::Abs(CurrentThrustScalar), 0.f, 1.f);
+	const float Boost01 = bBoostHeld ? 1.f : 0.f;
+	const float Loudness = 0.15f + 0.55f * Thrust01 + 0.30f * Boost01;
+	if (Loudness > EngineNoiseThreshold)
+	{
+		UAISense_Hearing::ReportNoiseEvent(this, GetActorLocation(), 1.f, this, EngineNoiseMaxRange * Loudness, TEXT("ShellEngine"));
 	}
 }
 

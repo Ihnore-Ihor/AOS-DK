@@ -8,7 +8,7 @@ public class AOS_DK : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "Water", "Niagara", "ProceduralMeshComponent", "PhysicsCore" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "Water", "Niagara", "ProceduralMeshComponent", "PhysicsCore", "AIModule", "GameplayTasks", "NavigationSystem" });
 
 		//PrivateDependencyModuleNames.AddRange(new string[] {  });
 

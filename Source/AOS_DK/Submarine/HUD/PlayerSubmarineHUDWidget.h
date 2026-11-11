@@ -141,6 +141,10 @@ private:
 	UFUNCTION()
 	void HandleDroneReload(ASubDroneBase* Drone, ESubDroneReloadResult Result, float EnergyCostPercent);
 
+	/** A drone projectile ended (hit / surface / expired) -> crosshair hit marker. */
+	UFUNCTION()
+	void HandleProjectileImpact(ASubDroneBase* Drone, ESubDroneImpactKind Kind, FVector Location, float Damage);
+
 	TWeakObjectPtr<AShellPawn> Shell;
 	TWeakObjectPtr<UShellEnergyComponent> BoundEnergy;
 	TWeakObjectPtr<USubDroneBayComponent> BoundBay;

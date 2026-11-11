@@ -1,0 +1,210 @@
+{
+  "asset": "SM_WPN_SigkillPike",
+  "units": "cm",
+  "space": "3ds Max RH Z-up, +X = butt->tip; UE import maps (x, y, z) -> (x, -y, z)",
+  "slots": [
+    "MS_HardenedAlloy",
+    "MS_PowerCoil",
+    "MS_AccentEmissive"
+  ],
+  "ucx_names": [
+    "UCX_SM_WPN_SigkillPike_00",
+    "UCX_SM_WPN_SigkillPike_01",
+    "UCX_SM_WPN_SigkillPike_02",
+    "UCX_SM_WPN_SigkillPike_03"
+  ],
+  "sockets": {
+    "SOCKET_Mount_Base": {
+      "pos": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "x": [
+        1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Arc_Tip_L": {
+      "pos": [
+        255.0,
+        11.21,
+        0.0
+      ],
+      "x": [
+        0,
+        -1,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Arc_Tip_R": {
+      "pos": [
+        255.0,
+        -11.21,
+        0.0
+      ],
+      "x": [
+        0,
+        1,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Strike_Trace_Start": {
+      "pos": [
+        170.0,
+        0.0,
+        0.0
+      ],
+      "x": [
+        1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    },
+    "SOCKET_Strike_Trace_End": {
+      "pos": [
+        262.0,
+        0.0,
+        0.0
+      ],
+      "x": [
+        1,
+        0,
+        0
+      ],
+      "z": [
+        0,
+        0,
+        1
+      ]
+    }
+  },
+  "stats": {
+    "max_units": "centimeters",
+    "uv_overlapping_faces": 0,
+    "parts": 55,
+    "verts": 2470,
+    "tris": 4764,
+    "mat_ids": [
+      1,
+      2,
+      3
+    ],
+    "bbox_min": [
+      -26.0,
+      -14.95,
+      -13.0
+    ],
+    "bbox_max": [
+      261.97,
+      14.95,
+      11.0
+    ],
+    "length_cm": 287.97,
+    "width_y_cm": 29.9,
+    "height_z_cm": 24.0,
+    "pivot": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "ucx": [
+      {
+        "name": "UCX_SM_WPN_SigkillPike_00",
+        "verts": 24,
+        "tris": 44,
+        "planes": 14,
+        "bbox_min": [
+          -26.0,
+          -11.01,
+          -11.01
+        ],
+        "bbox_max": [
+          60.0,
+          11.01,
+          11.01
+        ]
+      },
+      {
+        "name": "UCX_SM_WPN_SigkillPike_01",
+        "verts": 8,
+        "tris": 12,
+        "planes": 6,
+        "bbox_min": [
+          60.0,
+          -8.0,
+          -8.0
+        ],
+        "bbox_max": [
+          214.0,
+          8.0,
+          8.0
+        ]
+      },
+      {
+        "name": "UCX_SM_WPN_SigkillPike_02",
+        "verts": 8,
+        "tris": 12,
+        "planes": 6,
+        "bbox_min": [
+          200.0,
+          5.0,
+          -11.0
+        ],
+        "bbox_max": [
+          262.0,
+          15.0,
+          11.0
+        ]
+      },
+      {
+        "name": "UCX_SM_WPN_SigkillPike_03",
+        "verts": 8,
+        "tris": 12,
+        "planes": 6,
+        "bbox_min": [
+          200.0,
+          -15.0,
+          -11.0
+        ],
+        "bbox_max": [
+          262.0,
+          -5.0,
+          11.0
+        ]
+      }
+    ],
+    "ucx_count": 4,
+    "ucx_max_verts": 24,
+    "verts_inside_ucx_union_pct": 91.8,
+    "core_verts_inside_ucx_pct": 95.0,
+    "sockets": [
+      "SOCKET_Arc_Tip_L",
+      "SOCKET_Arc_Tip_R",
+      "SOCKET_Mount_Base",
+      "SOCKET_Strike_Trace_End",
+      "SOCKET_Strike_Trace_Start"
+    ]
+  }
+}
