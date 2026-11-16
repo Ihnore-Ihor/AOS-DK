@@ -1,0 +1,164 @@
+{
+ "asset": "SK_Agro_WindGen",
+ "units": "cm",
+ "space": "authored UE-local, mirrored y->-y in Max; FBX import maps (x, y, z) -> (x, -y, z)",
+ "fps": 30,
+ "bones": [
+  {
+   "name": "WG_Root",
+   "parent": null,
+   "pos": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "WG_Tower",
+   "parent": "WG_Root",
+   "pos": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "WG_Nacelle_Yaw",
+   "parent": "WG_Tower",
+   "pos": [
+    0.0,
+    0.0,
+    880.0
+   ]
+  },
+  {
+   "name": "WG_TailVane",
+   "parent": "WG_Nacelle_Yaw",
+   "pos": [
+    -95.0,
+    0.0,
+    895.0
+   ]
+  },
+  {
+   "name": "WG_Light_Obstr",
+   "parent": "WG_Nacelle_Yaw",
+   "pos": [
+    0.0,
+    0.0,
+    932.0
+   ]
+  },
+  {
+   "name": "WG_Rotor_Hub",
+   "parent": "WG_Nacelle_Yaw",
+   "pos": [
+    50.0,
+    0.0,
+    905.0
+   ]
+  },
+  {
+   "name": "WG_Blade_0",
+   "parent": "WG_Rotor_Hub",
+   "pos": [
+    51.0,
+    7.347880794884119e-16,
+    917.0
+   ]
+  },
+  {
+   "name": "WG_Blade_1",
+   "parent": "WG_Rotor_Hub",
+   "pos": [
+    51.0,
+    -10.392304845413264,
+    899.0
+   ]
+  },
+  {
+   "name": "WG_Blade_2",
+   "parent": "WG_Rotor_Hub",
+   "pos": [
+    51.0,
+    10.39230484541326,
+    899.0
+   ]
+  }
+ ],
+ "sockets": {
+  "SOCKET_Mount_C": {
+   "bone": "WG_Root",
+   "pos": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "SOCKET_Light_Obstr": {
+   "bone": "WG_Light_Obstr",
+   "pos": [
+    0.0,
+    0.0,
+    932.0
+   ]
+  },
+  "SOCKET_Rotor": {
+   "bone": "WG_Rotor_Hub",
+   "pos": [
+    50.0,
+    0.0,
+    905.0
+   ]
+  }
+ },
+ "takes": {
+  "A_WindGen_Spin": [
+   0,
+   90
+  ],
+  "A_WindGen_Hunt": [
+   0,
+   240
+  ],
+  "A_WindGen_Furl": [
+   0,
+   60
+  ]
+ },
+ "slots": [
+  "MS_Corten",
+  "MS_Tin",
+  "MS_Pipe",
+  "MS_Trim",
+  "MS_Rotor",
+  "MS_Beacon"
+ ],
+ "stats": {
+  "tris": 3184,
+  "tris_ue_local": 3184,
+  "verts": 1744,
+  "open_edges": 0,
+  "open_edges_builder": 0,
+  "verts_not_single_weight": 0,
+  "bones": 9,
+  "slots": [
+   "MS_Corten",
+   "MS_Tin",
+   "MS_Pipe",
+   "MS_Trim",
+   "MS_Rotor",
+   "MS_Beacon"
+  ],
+  "bbox_min": [
+   -128.0,
+   -100.0,
+   0.0
+  ],
+  "bbox_max": [
+   100.0,
+   100.0,
+   995.0
+  ]
+ }
+}

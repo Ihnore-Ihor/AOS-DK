@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import tempfile
+import threading
 import time
 import uuid
 
@@ -225,6 +226,188 @@ def set_property(object_path: str, property_name: str, value: object) -> dict:
         "propertyValue": {property_name: value},
     }
     return _request("PUT", "/object/property", body)
+
+
+# ---------------------------------------------------------------------------
+# UBT build control (non-blocking)
+# ---------------------------------------------------------------------------
+UE_BUILD_BAT = os.environ.get(
+    "UE_BUILD_BAT",
+    r"C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat",
+)
+_PROJECT_DIR = os.path.dirname(UE_PROJECT)
+BUILD_LOG = os.path.join(_PROJECT_DIR, "Saved", "MCP_Build.log")
+
+_build_lock = threading.Lock()
+_build: dict = {
+    "proc": None,        # subprocess.Popen of the active/last build
+    "log_handle": None,  # open log file handle for the active build
+    "start": None,       # time.monotonic() at launch
+    "end": None,         # time.monotonic() when finish was observed
+    "cmd": None,
+    "exit_code": None,
+    "stopped": False,
+}
+
+
+def _editor_running() -> bool:
+    try:
+        out = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq UnrealEditor.exe", "/NH"],
+            capture_output=True, text=True, timeout=15,
+        ).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return "UnrealEditor.exe" in out
+
+
+def _tail_log(lines: int = 40) -> str:
+    try:
+        with open(BUILD_LOG, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            f.seek(max(0, size - 64 * 1024))
+            data = f.read()
+    except OSError:
+        return ""
+    text = data.decode("utf-8", errors="replace")
+    return "\n".join(text.splitlines()[-lines:])
+
+
+def _refresh_build_state() -> bool:
+    """Update bookkeeping from poll(); return True if a build is currently running."""
+    proc = _build["proc"]
+    if proc is None:
+        return False
+    code = proc.poll()
+    if code is None:
+        return True
+    if _build["end"] is None:
+        _build["end"] = time.monotonic()
+        _build["exit_code"] = code
+        handle = _build["log_handle"]
+        if handle is not None:
+            try:
+                handle.close()
+            except OSError:
+                pass
+            _build["log_handle"] = None
+    return False
+
+
+@mcp.tool()
+def start_build(
+    target: str = "AOS_DKEditor",
+    configuration: str = "Development",
+    platform: str = "Win64",
+    warnings_as_errors: bool = True,
+    close_editor_first: bool = True,
+) -> dict:
+    """Start an Unreal Build Tool compile asynchronously (non-blocking).
+
+    Closes UnrealEditor.exe first when close_editor_first is True (graceful; reports if it refuses to close).
+    Output goes to Saved/MCP_Build.log; poll build_status, cancel with stop_build.
+    """
+    with _build_lock:
+        if _refresh_build_state():
+            return {"ok": False, "error": "A build is already running", "pid": _build["proc"].pid,
+                    "elapsed_sec": round(time.monotonic() - _build["start"], 1)}
+        if not os.path.isfile(UE_BUILD_BAT):
+            return {"ok": False, "error": f"Build.bat not found: {UE_BUILD_BAT}"}
+        if not os.path.isfile(UE_PROJECT):
+            return {"ok": False, "error": f"Project not found: {UE_PROJECT}"}
+
+        editor_was_running = _editor_running()
+        if editor_was_running and close_editor_first:
+            try:
+                subprocess.run(["taskkill", "/IM", "UnrealEditor.exe"],
+                               capture_output=True, text=True, timeout=30)
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                return {"ok": False, "error": f"Failed to close editor: {exc}"}
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline and _editor_running():
+                time.sleep(1)
+            if _editor_running():
+                return {"ok": False, "editor_running": True,
+                        "error": "Editor did not close within 60s (likely an unsaved-changes prompt). "
+                                 "Save/dismiss it, or call close_editor(force=True), then retry."}
+        elif editor_was_running:
+            return {"ok": False, "editor_running": True,
+                    "error": "UnrealEditor.exe is running; close it or pass close_editor_first=True."}
+
+        cmd = [UE_BUILD_BAT, target, platform, configuration, f"-Project={UE_PROJECT}",
+               "-WaitMutex", "-NoHotReload"]
+        if warnings_as_errors:
+            cmd.append("-WarningsAsErrors")
+
+        env = os.environ.copy()
+        env["GIT_CONFIG_COUNT"] = "1"
+        env["GIT_CONFIG_KEY_0"] = "core.quotepath"
+        env["GIT_CONFIG_VALUE_0"] = "false"
+
+        try:
+            os.makedirs(os.path.dirname(BUILD_LOG), exist_ok=True)
+            handle = open(BUILD_LOG, "wb")
+        except OSError as exc:
+            return {"ok": False, "error": f"Cannot open build log {BUILD_LOG}: {exc}"}
+
+        flags = 0
+        if os.name == "nt":
+            flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+        try:
+            proc = subprocess.Popen(cmd, stdout=handle, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                    env=env, cwd=_PROJECT_DIR, creationflags=flags)
+        except OSError as exc:
+            handle.close()
+            return {"ok": False, "error": f"Failed to start UBT: {exc}"}
+
+        _build.update(proc=proc, log_handle=handle, start=time.monotonic(), end=None,
+                      cmd=cmd, exit_code=None, stopped=False)
+        return {"ok": True, "status": "Build started", "pid": proc.pid, "log": BUILD_LOG,
+                "editor_was_running": editor_was_running, "command": subprocess.list2cmdline(cmd)}
+
+
+@mcp.tool()
+def build_status() -> dict:
+    """Report the active or last UBT build: running, exit_code, elapsed_sec and the last ~40 log lines."""
+    with _build_lock:
+        if _build["proc"] is None:
+            return {"ok": True, "running": False, "exit_code": None, "elapsed_sec": 0,
+                    "note": "No build started in this MCP session", "log_tail": _tail_log()}
+        running = _refresh_build_state()
+        end = time.monotonic() if running else _build["end"]
+        return {
+            "ok": True,
+            "running": running,
+            "exit_code": None if running else _build["exit_code"],
+            "stopped": _build["stopped"],
+            "pid": _build["proc"].pid,
+            "elapsed_sec": round(end - _build["start"], 1),
+            "log_tail": _tail_log(40),
+        }
+
+
+@mcp.tool()
+def stop_build() -> dict:
+    """Kill the active UBT build process tree (taskkill /PID <pid> /T /F)."""
+    with _build_lock:
+        proc = _build["proc"]
+        if proc is None or not _refresh_build_state():
+            return {"ok": False, "error": "No build is running"}
+        pid = proc.pid
+        try:
+            result = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
+                                    capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return {"ok": False, "error": f"taskkill failed: {exc}"}
+        _build["stopped"] = True
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        _refresh_build_state()
+        return {"ok": result.returncode == 0, "pid": pid,
+                "output": (result.stdout + result.stderr).strip()}
 
 
 if __name__ == "__main__":

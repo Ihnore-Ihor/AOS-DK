@@ -74,11 +74,13 @@ void UBTService_AOS_ReaperSense::TickNode(UBehaviorTreeComponent& OwnerComp, uin
 	// ---- 3. geometry: closest hull point, strike envelope, above-reach flag, ground point (steps 2-5) ---------------------------
 	bool bInEnvelope = false;
 	bool bAboveReach = false;
+	bool bHaveDistance = false;
 	float Distance = 0.f;
 	FVector Closest = FVector::ZeroVector;
 	if (Level == EAOSThreatLevel::Hostile && Shell && AIC->ComputeEnvelope(Shell, Closest, bInEnvelope, bAboveReach))
 	{
 		Distance = static_cast<float>(FVector::Dist(Closest, R->GetArmTurretLocation()));
+		bHaveDistance = true;
 		R->SetShellTarget(Shell);
 
 		FVector Ground = Shell->GetActorLocation();
@@ -101,6 +103,7 @@ void UBTService_AOS_ReaperSense::TickNode(UBehaviorTreeComponent& OwnerComp, uin
 	BB->SetValueAsBool(AOSReaperBB::bInStrikeEnvelope, bInEnvelope);
 	BB->SetValueAsBool(AOSReaperBB::bTargetAboveReach, bAboveReach);
 	BB->SetValueAsFloat(AOSReaperBB::TargetDistance, Distance);
+	R->SetCombatRangeInfo(bHaveDistance ? Distance : BIG_NUMBER, Level);   // Lab 6 Task 2: drives the pike draw / stow FSM
 	const UAOS_EvasionComponent* Evasion = R->GetEvasion();
 	BB->SetValueAsBool(AOSReaperBB::bIsEvading, Evasion && Evasion->IsEvading());
 	BB->SetValueAsBool(AOSReaperBB::bInHazard, R->IsInHazard());

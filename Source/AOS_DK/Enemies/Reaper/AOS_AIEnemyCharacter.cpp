@@ -18,12 +18,29 @@
 #include "NiagaraFunctionLibrary.h"
 #include "Perception/AISense_Damage.h"
 #include "UObject/ConstructorHelpers.h"
+#include "DrawDebugHelpers.h"
+#include "HAL/IConsoleManager.h"
 
 DEFINE_LOG_CATEGORY(LogAOSAI);
+
+static TAutoConsoleVariable<int32> CVarShowPosture(TEXT("aos.ai.ShowPosture"), 0,
+	TEXT("1 = draw the Reaper pike posture / range / progress above SOCKET_UI_Health and the draw lance arc."));
 
 namespace
 {
 	int32 GNextReaperPID = 4700;
+
+	// Draw beats (spec 3.2): unlatch 0-0.20 s, swing 0.20-0.85 s, lock 0.85-1.10 s of the 1.10 s draw, as fractions of s.
+	constexpr float kBeatUnlatch = 0.20f / 1.10f;
+	constexpr float kBeatSwing = 0.85f / 1.10f;
+	// Stow beats as fractions of the 1.40 s stow: unlock (recoil) 0.2 s, seat 0.2 s.
+	constexpr float kStowUnlock = 0.20f / 1.40f;
+	constexpr float kStowSeat = 1.f - 0.20f / 1.40f;
+	constexpr float kUnlatchPitchDeg = 200.f;   // tip lifted out of the cradle
+	constexpr float kShoulderRise = 23.f;       // Arm_Pitch1_Bone above Arm_Yaw_Bone (SK_OOMReaper_rig.json)
+	constexpr float kSocketOffset = 15.f;       // wrist -> pike mount
+	constexpr float kRecoilCm = 20.f;
+	constexpr float kSeatOvershootDeg = 4.f;
 }
 
 AAOS_AIEnemyCharacter::AAOS_AIEnemyCharacter()
@@ -169,6 +186,7 @@ void AAOS_AIEnemyCharacter::Tick(float DeltaSeconds)
 		DeathAlpha = FMath::Min(1.f, DeathAlpha + DeltaSeconds / 0.8f);
 		return;
 	}
+	UpdateWeaponPosture(DeltaSeconds);
 	UpdateStrike(DeltaSeconds);
 	UpdateHazardRamp(DeltaSeconds);
 	UpdatePageMapAlert();
@@ -391,6 +409,10 @@ float AAOS_AIEnemyCharacter::TakeDamage(float DamageAmount, FDamageEvent const& 
 		return 0.f;
 	}
 	Health = FMath::Max(0.f, Health - Applied);
+	if (RangeLevel == EAOSThreatLevel::Hostile)
+	{
+		bDrawRequested = true;   // hit while hostile: draw regardless of range
+	}
 	if (PageMap)
 	{
 		PageMap->SetHealth(Health, MaxHealth);
@@ -503,6 +525,7 @@ void AAOS_AIEnemyCharacter::PlaySpotReaction()
 bool AAOS_AIEnemyCharacter::CanStrike() const
 {
 	return !bDead && StrikeStage == EStrikeStage::None && Weapon && !bSkittering
+		&& WeaponPosture == EAOSWeaponPosture::Ready
 		&& GetWorld() && GetWorld()->GetTimeSeconds() - LastStrikeEndTime >= StrikeCooldown;
 }
 
@@ -658,18 +681,232 @@ float AAOS_AIEnemyCharacter::GetArmCommand(FVector& OutTipWorld, FVector& OutDir
 		break;
 	}
 
-	// Guard pose: pike levelled on the hull while hunting / shadowing.
+	// Posture pose (Lab 6 Task 2). Ready = the old guard pose (pike levelled on the hull, tracked at 400 cm/s); Drawing /
+	// Stowing / Stowed are authored per frame on the game thread (TipSpeed 0 = exact, the anim instance does not interpolate).
+	if (WeaponPosture == EAOSWeaponPosture::Ready)
+	{
+		OutDirWorld = GetPostureTargetDir();
+		OutTipWorld = A + OutDirWorld * 300.f;
+		OutTipSpeed = 400.f;
+		return 1.f;
+	}
+	GetPosturePose(OutTipWorld, OutDirWorld);
+	OutTipSpeed = 0.f;
+	return 1.f;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Weapon posture FSM (Lab 6 Task 2)
+// ---------------------------------------------------------------------------------------------------------------------
+void AAOS_AIEnemyCharacter::SetCombatRangeInfo(float DistanceCm, EAOSThreatLevel Level)
+{
+	RangeCm = DistanceCm;
+	RangeLevel = Level;
+}
+
+void AAOS_AIEnemyCharacter::SetWeaponPosture(EAOSWeaponPosture NewPosture)
+{
+	if (NewPosture == WeaponPosture)
+	{
+		return;
+	}
+	const EAOSWeaponPosture Old = WeaponPosture;
+	WeaponPosture = NewPosture;
+	PostureTime = 0.f;
+	OutOfRangeTime = 0.f;
+	UE_LOG(LogAOSAI, Log, TEXT("oom_reaper[%d]: posture %d -> %d (D=%.0f cm, s=%.2f)"), PID, int32(Old), int32(NewPosture), RangeCm, PostureS);
+	if (NewPosture == EAOSWeaponPosture::Ready)
+	{
+		ReportToShell(TEXT("SIGKILL pike ARMED"), EAOSHudLogSeverity::Warning);
+	}
+	else if (NewPosture == EAOSWeaponPosture::Stowed)
+	{
+		ReportToShell(TEXT("pike stowed"), EAOSHudLogSeverity::Info);
+	}
+	BP_OnWeaponPostureChanged(NewPosture, Old);
+}
+
+void AAOS_AIEnemyCharacter::UpdateWeaponPosture(float Dt)
+{
 	if (const AShellPawn* Shell = ShellTarget.Get())
 	{
-		if (Phase == EAOSReaperPhase::Chase || Phase == EAOSReaperPhase::Shadow || Phase == EAOSReaperPhase::Evading)
+		LastReadyDir = (Shell->GetActorLocation() - GetArmTurretLocation()).GetSafeNormal();   // cache for a lost target
+	}
+	if (CVarShowPosture.GetValueOnGameThread() != 0)
+	{
+		DrawPostureDebug();
+	}
+
+	PostureTime += Dt;
+	const bool bHostile = RangeLevel == EAOSThreatLevel::Hostile;
+	const bool bDrawCond = (bHostile && RangeCm <= DrawRange) || (bDrawRequested && bHostile);
+
+	switch (WeaponPosture)
+	{
+	case EAOSWeaponPosture::Stowed:
+		PostureS = 0.f;
+		if (bDrawCond)
 		{
-			OutDirWorld = (Shell->GetActorLocation() - A).GetSafeNormal();
-			OutTipWorld = A + OutDirWorld * 300.f;
-			OutTipSpeed = 400.f;
-			return 1.f;
+			SetWeaponPosture(EAOSWeaponPosture::Drawing);
+		}
+		break;
+	case EAOSWeaponPosture::Drawing:
+		PostureS = FMath::Min(1.f, PostureS + Dt / FMath::Max(DrawTime, 0.01f));
+		if (PostureS >= 1.f)
+		{
+			bDrawRequested = false;
+			SetWeaponPosture(EAOSWeaponPosture::Ready);
+		}
+		break;
+	case EAOSWeaponPosture::Ready:
+	{
+		PostureS = 1.f;
+		const bool bOut = !bHostile || RangeCm > StowRange;
+		if (bOut && !IsStriking() && Phase != EAOSReaperPhase::Evading)
+		{
+			OutOfRangeTime += Dt;
+			if (OutOfRangeTime >= StowGraceTime)
+			{
+				SetWeaponPosture(EAOSWeaponPosture::Stowing);
+			}
+		}
+		else
+		{
+			OutOfRangeTime = 0.f;
+		}
+		break;
+	}
+	case EAOSWeaponPosture::Stowing:
+		if (bDrawCond)
+		{
+			SetWeaponPosture(EAOSWeaponPosture::Drawing);   // reverse from the current progress, no snap
+			break;
+		}
+		PostureS = FMath::Max(0.f, PostureS - Dt / FMath::Max(StowTime, 0.01f));
+		if (PostureS <= 0.f)
+		{
+			SetWeaponPosture(EAOSWeaponPosture::Stowed);
+		}
+		break;
+	}
+}
+
+FVector AAOS_AIEnemyCharacter::GetPostureTargetDir() const
+{
+	if (const AShellPawn* Shell = ShellTarget.Get())
+	{
+		const FVector D = (Shell->GetActorLocation() - GetArmTurretLocation()).GetSafeNormal();
+		if (!D.IsNearlyZero())
+		{
+			return D;
 		}
 	}
-	return 0.f;   // stowed along the back
+	return LastReadyDir.IsNearlyZero() ? GetActorForwardVector() : LastReadyDir;
+}
+
+/**
+ * Pike axis d(theta, kappa, psi) = RotZ(psi) * (cos t, sin t * sin k, sin t * cos k) in the body frame (X fwd, Y arm side, Z up), orbiting
+ * the shoulder at LanceWristRadius; tip = wrist + d * (socket + pike). Ready is the existing guard pose (A + dir * 300): a smooth
+ * correction vector blends the lance tip onto it so there is no pop at the lock.
+ */
+void AAOS_AIEnemyCharacter::EvalLancePose(float DrawS, bool bStowMode, float RecoilCm, float SeatOvershootDeg, FVector& OutTip, FVector& OutDir) const
+{
+	const FQuat Q = FRotator(0.f, GetActorRotation().Yaw, 0.f).Quaternion();
+	const FVector A = GetArmTurretLocation();
+	const FVector Shoulder = A + FVector(0.f, 0.f, kShoulderRise);
+	const float LanceLen = LanceWristRadius + kSocketOffset + PikeTipDistance;
+
+	const FVector TargetW = GetPostureTargetDir();
+	const FVector TargetB = Q.UnrotateVector(TargetW);
+	const float ElevDeg = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(TargetB.Z, -1.f, 1.f)));
+	const float YawTgtDeg = FMath::RadiansToDegrees(FMath::Atan2(TargetB.Y, TargetB.X));
+
+	const float S = FMath::Clamp(DrawS, 0.f, 1.f);
+	float ThetaDeg, KappaDeg = 0.f, PsiDeg = 0.f;
+	if (S < kBeatUnlatch)   // 1. unlatch: the tip lifts out of the cradle
+	{
+		ThetaDeg = FMath::Lerp(StowPitchDeg, kUnlatchPitchDeg, FMath::SmoothStep(0.f, 1.f, S / kBeatUnlatch));
+		ThetaDeg -= bStowMode ? SeatOvershootDeg : 0.f;   // seat: overshoot past the cradle pitch, then settle
+	}
+	else if (S < kBeatSwing)   // 2. swing over the back, then onto the target (late yaw)
+	{
+		const float U = (S - kBeatUnlatch) / (kBeatSwing - kBeatUnlatch);
+		ThetaDeg = FMath::Lerp(kUnlatchPitchDeg, ElevDeg, FMath::SmoothStep(0.f, 1.f, U));
+		KappaDeg = DrawCantDeg * FMath::Sin(PI * U);
+		PsiDeg = YawTgtDeg * U * U;
+	}
+	else   // 3. lock: critically damped settle with overshoot (draw only)
+	{
+		const float V = (S - kBeatSwing) / (1.f - kBeatSwing);
+		ThetaDeg = ElevDeg + (bStowMode ? 0.f : LockOvershootDeg * 6.75f * V * FMath::Square(1.f - V));
+		PsiDeg = YawTgtDeg;
+	}
+
+	const float T = FMath::DegreesToRadians(ThetaDeg), K = FMath::DegreesToRadians(KappaDeg);
+	FVector D(FMath::Cos(T), FMath::Sin(T) * FMath::Sin(K), FMath::Sin(T) * FMath::Cos(K));
+	D = FQuat(FVector::UpVector, FMath::DegreesToRadians(PsiDeg)).RotateVector(D).GetSafeNormal();
+	const FVector DirW = Q.RotateVector(D);
+
+	const FVector TipModel = Shoulder + DirW * LanceLen;
+	const FVector TipGuard = A + TargetW * 300.f;
+	const FVector TipModelReady = Shoulder + TargetW * LanceLen;
+	const float W = FMath::SmoothStep(0.f, 1.f, S);
+	OutTip = TipModel + (TipGuard - TipModelReady) * W - DirW * RecoilCm;
+	OutDir = DirW;
+}
+
+void AAOS_AIEnemyCharacter::GetPosturePose(FVector& OutTip, FVector& OutDir) const
+{
+	switch (WeaponPosture)
+	{
+	case EAOSWeaponPosture::Drawing:
+		EvalLancePose(PostureS, false, 0.f, 0.f, OutTip, OutDir);
+		return;
+	case EAOSWeaponPosture::Stowing:
+	{
+		const float P = 1.f - PostureS;   // elapsed fraction of the stow
+		if (P < kStowUnlock)   // unlock: recoil 20 cm along -d at the ready pose
+		{
+			EvalLancePose(1.f, true, kRecoilCm * FMath::SmoothStep(0.f, 1.f, P / kStowUnlock), 0.f, OutTip, OutDir);
+		}
+		else if (P < kStowSeat)   // reverse swing (draw swing path run backwards, no lock overshoot)
+		{
+			const float U = (P - kStowUnlock) / (kStowSeat - kStowUnlock);
+			EvalLancePose(FMath::Lerp(kBeatSwing, kBeatUnlatch, FMath::SmoothStep(0.f, 1.f, U)), true, 0.f, 0.f, OutTip, OutDir);
+		}
+		else   // seat: 200 -> stow pitch with a small overshoot, then settle
+		{
+			const float V = (P - kStowSeat) / (1.f - kStowSeat);
+			EvalLancePose(kBeatUnlatch * (1.f - FMath::SmoothStep(0.f, 1.f, V)), true, 0.f, kSeatOvershootDeg * FMath::Sin(PI * V) * (1.f - V), OutTip, OutDir);
+		}
+		return;
+	}
+	case EAOSWeaponPosture::Stowed:
+	default:
+		EvalLancePose(0.f, false, 0.f, 0.f, OutTip, OutDir);
+		return;
+	}
+}
+
+void AAOS_AIEnemyCharacter::DrawPostureDebug() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	static const TCHAR* Names[] = { TEXT("Stowed"), TEXT("Drawing"), TEXT("Ready"), TEXT("Stowing") };
+	const USkeletalMeshComponent* SkelMesh = GetMesh();
+	const FVector Label = SkelMesh->DoesSocketExist(TEXT("SOCKET_UI_Health")) ? SkelMesh->GetSocketLocation(TEXT("SOCKET_UI_Health")) + FVector(0, 0, 40.f) : GetActorLocation() + FVector(0, 0, 320.f);
+	DrawDebugString(World, Label, FString::Printf(TEXT("%s  D=%.0f  s=%.2f  out=%.1f"), Names[int32(WeaponPosture)], RangeCm, PostureS, OutOfRangeTime), nullptr, FColor::Cyan, 0.f, true);
+	FVector Prev = FVector::ZeroVector;
+	for (int32 i = 0; i <= 8; ++i)
+	{
+		FVector Tip, Dir;
+		EvalLancePose(float(i) / 8.f, false, 0.f, 0.f, Tip, Dir);
+		if (i > 0) { DrawDebugLine(World, Prev, Tip, FColor::Yellow, false, 0.f, 0, 2.f); }
+		Prev = Tip;
+	}
 }
 
 float AAOS_AIEnemyCharacter::GetJawOpenTarget() const
@@ -684,7 +921,13 @@ float AAOS_AIEnemyCharacter::GetJawOpenTarget() const
 	case EStrikeStage::Thrust: return 35.f;
 	default: break;
 	}
-	return SpotFlare > 0.f ? 30.f * SpotFlare : 0.f;
+	float Posture = 0.f;
+	if (WeaponPosture == EAOSWeaponPosture::Drawing)
+	{
+		// beat 1 unlatch 15 deg, beat 2 swing 25 deg, beat 3 lock: jaws snap shut
+		Posture = PostureS < kBeatUnlatch ? 15.f : (PostureS < kBeatSwing ? 25.f : 0.f);
+	}
+	return FMath::Max(Posture, SpotFlare > 0.f ? 30.f * SpotFlare : 0.f);
 }
 
 void AAOS_AIEnemyCharacter::GetActorEyesViewPoint(FVector& OutLocation, FRotator& OutRotation) const

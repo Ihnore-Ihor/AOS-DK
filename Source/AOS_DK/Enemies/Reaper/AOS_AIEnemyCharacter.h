@@ -84,6 +84,29 @@ public:
 	/** Key lines go to the cockpit terminal (AShellPawn::PushTerminalLog); everything goes to LogAOSAI. */
 	void ReportToShell(const FString& Message, EAOSHudLogSeverity Severity = EAOSHudLogSeverity::Info);
 
+	// ---- weapon posture (Lab 6 Task 2) ---------------------------------------------------------------------------------------
+	/** Fed by BTService_AOS_ReaperSense every tick: turret -> closest hull point distance (BIG when not hostile) + threat level. */
+	void SetCombatRangeInfo(float DistanceCm, EAOSThreatLevel Level);
+
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Reaper|Posture")
+	EAOSWeaponPosture GetWeaponPosture() const { return WeaponPosture; }
+
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Reaper|Posture")
+	bool IsWeaponReady() const { return WeaponPosture == EAOSWeaponPosture::Ready; }
+
+	/** 0 = stowed, 1 = ready (draw / stow progress). */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Reaper|Posture")
+	float GetPostureS() const { return PostureS; }
+
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Reaper|Posture")
+	float GetRangeCm() const { return RangeCm; }
+
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Reaper|Posture")
+	float GetOutOfRangeTime() const { return OutOfRangeTime; }
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "AOS_DK|Reaper|Posture", meta = (DisplayName = "On Weapon Posture Changed"))
+	void BP_OnWeaponPostureChanged(EAOSWeaponPosture NewPosture, EAOSWeaponPosture OldPosture);
+
 	// ---- strike -------------------------------------------------------------------------------------------------------------
 	bool CanStrike() const;
 	bool IsStriking() const { return StrikeStage != EStrikeStage::None; }
@@ -158,6 +181,38 @@ public:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Reaper|Strike", meta = (ClampMin = "0", Units = "cm"))
 	float MaxTipReach = 432.f;
 
+	/** Draw the pike when the Shell is hostile and closer than this (turret -> closest hull point). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Reaper|Posture", meta = (ClampMin = "0", Units = "cm"))
+	float DrawRange = 1500.f;
+
+	/** Stow only after the Shell stayed beyond this (or stopped being hostile) for StowGraceTime. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Reaper|Posture", meta = (ClampMin = "0", Units = "cm"))
+	float StowRange = 1900.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Reaper|Posture", meta = (ClampMin = "0", Units = "s"))
+	float StowGraceTime = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Reaper|Posture", meta = (ClampMin = "0.1", Units = "s"))
+	float DrawTime = 1.10f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Reaper|Posture", meta = (ClampMin = "0.1", Units = "s"))
+	float StowTime = 1.40f;
+
+	/** Stowed pike pitch from +X (deg); 192 = slung aft, tip lowered 12 deg. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Reaper|Posture", meta = (Units = "deg"))
+	float StowPitchDeg = 192.f;
+
+	/** Outboard cant of the swing plane at mid-swing (clears the spine and the mast). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Reaper|Posture", meta = (Units = "deg"))
+	float DrawCantDeg = 20.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Reaper|Posture", meta = (ClampMin = "0", Units = "deg"))
+	float LockOvershootDeg = 6.f;
+
+	/** Wrist distance from the shoulder along the pike axis while drawing / stowing (IK reach 10..170). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Reaper|Posture", meta = (ClampMin = "20", ClampMax = "165", Units = "cm"))
+	float LanceWristRadius = 110.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Reaper|Patrol")
 	TArray<TObjectPtr<AActor>> PatrolNodes;
 
@@ -212,6 +267,13 @@ private:
 	void Respawn();
 	void ApplySpeed();
 	void UpdateStrike(float Dt);
+	void UpdateWeaponPosture(float Dt);
+	void SetWeaponPosture(EAOSWeaponPosture NewPosture);
+	/** Pike pose of the 3-beat draw / stow (world space). DrawS: 0 stowed .. 1 ready on the target. */
+	void EvalLancePose(float DrawS, bool bStowMode, float RecoilCm, float SeatOvershootDeg, FVector& OutTip, FVector& OutDir) const;
+	void GetPosturePose(FVector& OutTip, FVector& OutDir) const;
+	FVector GetPostureTargetDir() const;
+	void DrawPostureDebug() const;
 	void UpdateHazardRamp(float Dt);
 	void UpdatePageMapAlert();
 	void RecomputeHazards();
@@ -244,6 +306,16 @@ private:
 	double MastLookExpire = -1.0;
 	float MastSweepYaw = 0.f;
 	float MastSweepPitch = 0.f;
+
+	// weapon posture
+	EAOSWeaponPosture WeaponPosture = EAOSWeaponPosture::Stowed;
+	float PostureTime = 0.f;
+	float PostureS = 0.f;
+	float OutOfRangeTime = 0.f;
+	float RangeCm = 1.0e9f;
+	EAOSThreatLevel RangeLevel = EAOSThreatLevel::None;
+	bool bDrawRequested = false;
+	FVector LastReadyDir = FVector::ForwardVector;
 
 	// hazards
 	TMap<TWeakObjectPtr<AActor>, FAOSHazardParams> ActiveHazards;

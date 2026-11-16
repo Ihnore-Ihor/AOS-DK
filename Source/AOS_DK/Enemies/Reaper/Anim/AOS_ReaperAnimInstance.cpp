@@ -47,6 +47,7 @@ void UAOS_ReaperAnimInstance::NativeInitializeAnimation()
 	Super::NativeInitializeAnimation();
 	Reaper = Cast<AAOS_AIEnemyCharacter>(TryGetPawnOwner());
 	bCalibrated = false;
+	ArmAlpha = 1.f;   // the posture FSM always authors an arm pose (Stowed = slung aft): no fold-in pop at spawn
 	Calibrate();
 }
 
@@ -265,8 +266,9 @@ void UAOS_ReaperAnimInstance::UpdateArm(float Dt)
 	{
 		const FVector TipCS = MeshXf.InverseTransformPosition(TipWorld);
 		const FVector DirCS = MeshXf.InverseTransformVectorNoScale(DirWorld).GetSafeNormal();
-		if (ArmAlpha < 0.05f && TargetAlpha > 0.f)
+		if (Speed <= 0.f || (ArmAlpha < 0.05f && TargetAlpha > 0.f))
 		{
+			// Speed 0: the game thread authors the curve (posture draw / stow), no interpolation.
 			ArmTipCS = TipCS;
 			ArmDirCS = DirCS;
 		}

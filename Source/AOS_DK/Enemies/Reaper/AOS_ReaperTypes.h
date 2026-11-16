@@ -28,6 +28,10 @@ enum class EAOSGaitMode : uint8 { Walk, Investigate, Scuttle, Skitter, Brine };
 UENUM(BlueprintType)
 enum class EAOSArmMode : uint8 { Stowed, Guard, Windup, Thrust, Recover };
 
+/** Dorsal pike posture (Lab 6 Task 2): range-driven draw / stow state machine. */
+UENUM(BlueprintType)
+enum class EAOSWeaponPosture : uint8 { Stowed, Drawing, Ready, Stowing };
+
 /** Page map frame colour = alert state. */
 UENUM(BlueprintType)
 enum class EAOSPageAlert : uint8 { Patrol, Investigate, Combat, Critical, Brine };

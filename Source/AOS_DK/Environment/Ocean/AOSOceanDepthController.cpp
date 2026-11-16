@@ -1,7 +1,9 @@
 #include "AOSOceanDepthController.h"
 
+#include "AOS_DK/Environment/Sky/AOSEnvironmentState.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/ExponentialHeightFogComponent.h"
+#include "Components/DirectionalLightComponent.h"
 #include "Components/LightComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Engine/DirectionalLight.h"
@@ -94,6 +96,7 @@ void AAOSOceanDepthController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (bHasBaseline)
 	{
+		bRestoringAuthored = true; // authored state = unscaled by the environment
 		Apply(/*bUnderwater*/ false, 0.f); // leave the scene in its authored (air) state
 	}
 	Super::EndPlay(EndPlayReason);
@@ -118,7 +121,17 @@ void AAOSOceanDepthController::ResolveReferences()
 			}
 		}
 	}
-	if (!Sun)       { for (TActorIterator<ADirectionalLight> It(World); It; ++It) { Sun = *It; break; } }
+	if (!Sun)
+	{
+		// The atmosphere sun (index 0); DL_Moon (index 1) must never be picked up here.
+		for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+		{
+			const UDirectionalLightComponent* Comp = Cast<UDirectionalLightComponent>(It->GetLightComponent());
+			if (Comp && Comp->IsUsedAsAtmosphereSunLight() && Comp->GetAtmosphereSunLightIndex() != 0) { continue; }
+			Sun = *It;
+			break;
+		}
+	}
 	if (!SkyLight)  { for (TActorIterator<ASkyLight> It(World); It; ++It) { SkyLight = *It; break; } }
 	if (!HeightFog) { for (TActorIterator<AExponentialHeightFog> It(World); It; ++It) { HeightFog = *It; break; } }
 }
@@ -210,20 +223,36 @@ void AAOSOceanDepthController::Tick(float DeltaSeconds)
 		: TargetDepthM;
 
 	const bool bCrossed = LastUnderwater != int8(bUnderwater);
-	if (bCrossed || FMath::Abs(SmoothedDepthM - LastAppliedDepthM) > AOSOceanParams::ReapplyDepthStepM)
+	const bool bEnvChanged = GetEnvState().Revision != LastEnvRevision;
+	if (bCrossed || bEnvChanged || FMath::Abs(SmoothedDepthM - LastAppliedDepthM) > AOSOceanParams::ReapplyDepthStepM)
 	{
 		Apply(bUnderwater, SmoothedDepthM);
 	}
 }
 
-void AAOSOceanDepthController::ApplyFogPreset(const FAOSFogPreset& Preset, float InscatterScale)
+FAOSEnvironmentState AAOSOceanDepthController::GetEnvState() const
+{
+	if (!bRestoringAuthored)
+	{
+		if (const UWorld* World = GetWorld())
+		{
+			if (const UAOSEnvironmentStateSubsystem* Env = World->GetSubsystem<UAOSEnvironmentStateSubsystem>())
+			{
+				return Env->GetState();
+			}
+		}
+	}
+	return FAOSEnvironmentState();
+}
+
+void AAOSOceanDepthController::ApplyFogPreset(const FAOSFogPreset& Preset, float InscatterScale, float DensityScale)
 {
 	UExponentialHeightFogComponent* Fog = HeightFog ? HeightFog->GetComponent() : nullptr;
 	if (!Fog)
 	{
 		return;
 	}
-	Fog->SetFogDensity(Preset.Density);
+	Fog->SetFogDensity(Preset.Density * DensityScale);
 	Fog->SetFogHeightFalloff(Preset.HeightFalloff);
 	Fog->SetFogInscatteringColor(Preset.Inscattering * InscatterScale);
 	Fog->SetFogMaxOpacity(Preset.MaxOpacity);
@@ -236,6 +265,8 @@ void AAOSOceanDepthController::Apply(bool bUnderwater, float DepthM)
 {
 	LastUnderwater = int8(bUnderwater);
 	LastAppliedDepthM = DepthM;
+	const FAOSEnvironmentState Env = GetEnvState();
+	LastEnvRevision = Env.Revision;
 
 	float Aphotic = 1.f;
 	if (bUnderwater)
@@ -266,20 +297,22 @@ void AAOSOceanDepthController::Apply(bool bUnderwater, float DepthM)
 				* (1.f - FMath::SmoothStep(CausticCutStartM, CausticCutEndM, DepthM));
 			CausticCompensation = 1.f / FMath::Max(1.f - Fade * (1.f - CausticMeanTransmission), 0.05f);
 		}
-		SunLight->SetIntensity(BaseSunIntensity * Aphotic * CausticCompensation);
-		SunLight->SetVisibility(Aphotic > KINDA_SMALL_NUMBER);
+		// Env.SunScale = day factor x storm dimming; below the horizon the sun is hidden (frees VSM pages).
+		SunLight->SetIntensity(BaseSunIntensity * Env.SunScale * Aphotic * CausticCompensation);
+		SunLight->SetVisibility(Aphotic * Env.SunScale > KINDA_SMALL_NUMBER);
 		SunLight->SetVolumetricScatteringIntensity(bUnderwater
-			? SunVolumetricScatteringUnderwater * SunFactor * Aphotic
-			: BaseSunVolumetric);
+			? SunVolumetricScatteringUnderwater * SunFactor * Aphotic * Env.SunScale
+			: BaseSunVolumetric * Env.SunScale);
 	}
 
 	if (USkyLightComponent* Sky = SkyLight ? SkyLight->GetLightComponent() : nullptr)
 	{
-		Sky->SetIntensity(BaseSkyIntensity * AmbientFactor);
-		Sky->SetVolumetricScatteringIntensity(BaseSkyVolumetric * AmbientFactor);
+		Sky->SetIntensity(BaseSkyIntensity * Env.SkyScale * AmbientFactor);
+		Sky->SetVolumetricScatteringIntensity(BaseSkyVolumetric * Env.SkyScale * AmbientFactor);
 	}
 
-	ApplyFogPreset(bUnderwater ? WaterFog : AirFog, AmbientFactor);
+	// Air only: rain thickens the haze above the waterline, the water preset density is unchanged.
+	ApplyFogPreset(bUnderwater ? WaterFog : AirFog, AmbientFactor * Env.FogInscatterScale, bUnderwater ? 1.f : Env.FogDensityScale);
 
 	if (bUnderwater && WaterBody && WaterBody->GetWaterBodyComponent())
 	{
@@ -305,9 +338,9 @@ void AAOSOceanDepthController::Apply(bool bUnderwater, float DepthM)
 		if (UnderwaterMID)
 		{
 			FLinearColor Ambient = PPAmbientColor;
-			Ambient.A = PPFogAmbientIntensity * AmbientFactor;
+			Ambient.A = PPFogAmbientIntensity * AmbientFactor * Env.SkyScale;
 			FLinearColor Scatter = PPScatterColor;
-			Scatter.A = PPFogScatterIntensity * SunFactor * Aphotic;
+			Scatter.A = PPFogScatterIntensity * SunFactor * Aphotic * Env.SunScale;
 			UnderwaterMID->SetVectorParameterValue(AOSOceanParams::FogAmbientColor, Ambient);
 			UnderwaterMID->SetVectorParameterValue(AOSOceanParams::FogScatterColor, Scatter);
 		}

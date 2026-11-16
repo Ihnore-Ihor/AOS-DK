@@ -62,6 +62,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "AOS_DK|Ocean")
 	EAOSOceanZone GetCurrentZone() const { return CurrentZone; }
 
+	/** Underwater light transmission at the camera depth: exp(-Kd z) * aphotic fade (1 in air). Used for the moon. */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Ocean")
+	float GetSurfaceLightFactor() const { return AmbientFactor; }
+
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Ocean")
+	bool IsCameraUnderwater() const { return LastUnderwater == 1; }
+
 	// --- Scene references (auto-found when empty) ----------------------------------------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS_DK|Ocean|Refs")
 	TObjectPtr<AWaterBody> WaterBody;
@@ -180,7 +187,7 @@ private:
 	void CaptureBaseline();
 	bool GetViewLocation(FVector& OutLocation) const;
 	float GetWaterSurfaceZ(const FVector& At) const;
-	void ApplyFogPreset(const FAOSFogPreset& Preset, float InscatterScale);
+	void ApplyFogPreset(const FAOSFogPreset& Preset, float InscatterScale, float DensityScale = 1.f);
 	void Apply(bool bUnderwater, float DepthM);
 	void SetupWaveCollection();
 	bool AreCausticsRendered(const class ULightComponent* SunLight) const;
@@ -206,6 +213,11 @@ private:
 	float BaseSkyVolumetric = 1.f;
 	FLinearColor PPAmbientColor = FLinearColor(0.01f, 0.08f, 0.18f, 1.f);
 	FLinearColor PPScatterColor = FLinearColor(0.05f, 0.35f, 0.65f, 0.6f);
+
+	/** Day/night/storm scales (UAOSEnvironmentStateSubsystem); a revision change forces Apply(). */
+	struct FAOSEnvironmentState GetEnvState() const;
+	int32 LastEnvRevision = -1;
+	bool bRestoringAuthored = false;
 
 	bool bHasBaseline = false;
 	int8 LastUnderwater = -1;
