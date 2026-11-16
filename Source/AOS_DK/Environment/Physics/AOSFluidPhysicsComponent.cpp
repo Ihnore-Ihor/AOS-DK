@@ -1,5 +1,6 @@
 #include "AOSFluidPhysicsComponent.h"
 
+#include "AOS_DK/Environment/Ocean/AOSAtollSettings.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -193,26 +194,35 @@ void UAOSFluidPhysicsComponent::EvaluateWaves(const FVector& Location, float Tim
 	float GradX = 0.0f;
 	float GradY = 0.0f;
 
+	// Atoll calm-lagoon mask: scales amplitude only (elevation, orbital flow, slope), phases untouched.
+	const float AtollMask = bApplyAtollWaveMask ? AOSAtoll::WaveScale(Location) : 1.0f;
+	if (AtollMask <= 0.0f)
+	{
+		OutWaveNormal = FVector::UpVector;
+		return; // Mirror-calm water: mean sea level, no orbital flow.
+	}
+
 	for (const FWaveRuntime& H : WaveRuntime)
 	{
+		const float Amplitude = H.Amplitude * AtollMask;
 		float Phase = FVector2D::DotProduct(H.Direction, Pos2D) * H.K - H.Omega * Time + H.PhaseOffset;
 		float CosP = FMath::Cos(Phase);
 		float SinP = FMath::Sin(Phase);
 
 		// Surface elevation
-		OutSurfaceZ += H.Amplitude * CosP;
+		OutSurfaceZ += Amplitude * CosP;
 
 		// Kinematic exponential decay e^(k*z)
 		float DepthDecay = FMath::Exp(H.K * ZDepth);
 
 		// Orbital velocity field
-		float VelMag = H.Amplitude * H.Omega * DepthDecay;
+		float VelMag = Amplitude * H.Omega * DepthDecay;
 		OutFluidVel.X += H.Direction.X * VelMag * CosP;
 		OutFluidVel.Y += H.Direction.Y * VelMag * CosP;
 		OutFluidVel.Z += VelMag * SinP;
 
 		// Surface gradient (derivative of elevation) for the normal; optionally attenuated with depth
-		float D = -H.Amplitude * H.K * SinP;
+		float D = -Amplitude * H.K * SinP;
 		if (bDecayNormalWithDepth)
 		{
 			D *= DepthDecay;

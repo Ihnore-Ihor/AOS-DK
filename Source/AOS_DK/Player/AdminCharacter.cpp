@@ -2,6 +2,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "AOS_DK/Core/Interfaces/Interactions/Interactable.h"
+#include "AOS_DK/Systems/FallRecovery/AOSSafeGroundTracker.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -26,6 +27,8 @@ AAdminCharacter::AAdminCharacter()
 	
 	//~ Input
 	CameraComponent->bUsePawnControlRotation = true; 
+	
+	SafeGroundTracker = CreateDefaultSubobject<UAOSSafeGroundTracker>(TEXT("SafeGroundTracker"));
 }
 
 // Called when the game starts or when spawned

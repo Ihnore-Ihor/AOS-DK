@@ -97,3 +97,8 @@ Source/AOS_DK/Core/Tools/
 
 # Python bytecode
 __pycache__/
+Docs/
+claude/
+Claude outputs/
+*.docx
+**/__pycache__/

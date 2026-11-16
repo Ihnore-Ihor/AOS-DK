@@ -7,6 +7,7 @@
 class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
+class UAOSSafeGroundTracker;
 
 UCLASS()
 class AOS_DK_API AAdminCharacter : public ACharacter
@@ -37,12 +38,19 @@ public:
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	
+	/** Remembers the last SafeGround poses for AAOSFallRecoveryVolume (Urban Bible 4.5). */
+	UFUNCTION(BlueprintPure, Category = "Recovery")
+	UAOSSafeGroundTracker* GetSafeGroundTracker() const { return SafeGroundTracker; }
+	
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mesh")
 	class USkeletalMeshComponent* FirstPersonMesh;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	class UCameraComponent* CameraComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Recovery")
+	TObjectPtr<UAOSSafeGroundTracker> SafeGroundTracker;
 	
 
 

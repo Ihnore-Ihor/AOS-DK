@@ -175,6 +175,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS|FluidPhysics|Water", meta = (ClampMin = "0"))
 	float WaveInfluenceScale = 1.f;
 
+	/**
+	 * Multiplies the sea state by the Pontoon Atoll radial mask (UAOSAtollSettings): mirror-calm lagoon,
+	 * full swell beyond the breakwater. Same mask as the water queries and the water material.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS|FluidPhysics|Water")
+	bool bApplyAtollWaveMask = true;
+
 	//~ Mass (Newtonian) -----------------------------------------------------------------------------
 	/** > 0: forces this mass on the body at BeginPlay (collisions and fluid response). 0: use the body's mass. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOS|FluidPhysics|Mass", meta = (ClampMin = "0", Units = "kg"))

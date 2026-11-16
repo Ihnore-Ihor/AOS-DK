@@ -52,6 +52,10 @@ float elev = 0;
     orb.z += GA[w].w * cs * dec;
     elev += GA[w].w * cs;
 }
+// Pontoon Atoll calm-lagoon mask (same smoothstep / MPC_AOS_Atoll as MF_AOS_AtollWaveMask and the CPU mask).
+float atollA = smoothstep(AtollR.x, AtollR.y, length(c.xy - AtollC.xy));
+orb *= atollA;
+elev *= atollA;
 c += orb;
 float below = (WaveP.x + elev) - c.z;                   // depth under the local wave surface, cm
 float keep = step(WaveP.y, below);                      // never in air / in the crest
@@ -221,6 +225,12 @@ def build_material():
     vs_inputs = [("P0", p0), ("UV", uv), ("Seed", seed), ("Cam", cam), ("Base", base), ("T", time),
                  ("Box", box), ("Drift", drift), ("CamVel", cam_vel), ("SizeP", size_p), ("FadeP", fade_p),
                  ("WaveT", wave_t), ("WaveP", wave_p)]
+    atoll_mpc = unreal.load_asset(WATER_DIR + "/MPC_AOS_Atoll")
+    if atoll_mpc is None:
+        raise RuntimeError("MPC_AOS_Atoll missing - run Tools/ue_build_AtollLagoon.py (mode gpu) first")
+    atoll_c = expr(mat, E.MaterialExpressionCollectionParameter, -1300, 120, collection=atoll_mpc, parameter_name="AtollCenter")
+    atoll_r = expr(mat, E.MaterialExpressionCollectionParameter, -1300, 220, collection=atoll_mpc, parameter_name="Radii")
+    vs_inputs += [("AtollC", atoll_c), ("AtollR", atoll_r)]
     vs_inputs += [("GW%dA" % i, gwa[i]) for i in range(16)] + [("GW%dB" % i, gwb[i]) for i in range(16)]
     vs = custom(VS_CODE, unreal.CustomMaterialOutputType.CMOT_FLOAT3, [n for n, _ in vs_inputs], -700, -400)
     for n, src in vs_inputs:

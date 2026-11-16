@@ -1,7 +1,7 @@
 """Minimal stdio MCP server that bridges Claude to Unreal Engine 5.7 Remote Control HTTP.
 
 Environment variables (optional):
-  UE_REMOTE_CONTROL_URL  base URL of the Remote Control HTTP API (default http://localhost:30010/remote)
+  UE_REMOTE_CONTROL_URL  base URL of the Remote Control HTTP API (default http://127.0.0.1:30010/remote)
   UE_RC_TIMEOUT          request timeout in seconds (default 15)
   UE_DEFAULT_WORLD       world object path used as WorldContextObject for console commands
 """
@@ -16,8 +16,8 @@ import uuid
 import requests
 from mcp.server.fastmcp import FastMCP
 
-BASE_URL = os.environ.get("UE_REMOTE_CONTROL_URL", "http://localhost:30010/remote").rstrip("/")
-TIMEOUT = float(os.environ.get("UE_RC_TIMEOUT", "15"))
+BASE_URL = os.environ.get("UE_REMOTE_CONTROL_URL", "http://127.0.0.1:30010/remote").rstrip("/")
+TIMEOUT = float(os.environ.get("UE_RC_TIMEOUT", "300"))
 DEFAULT_WORLD = os.environ.get(
     "UE_DEFAULT_WORLD", "/Game/AOS_DK_Game/Maps/Lvl_FirstPerson.Lvl_FirstPerson"
 )
@@ -118,7 +118,7 @@ def close_editor(force: bool = False) -> dict:
 
 PYTHON_LIBRARY = "/Script/PythonScriptPlugin.Default__PythonScriptLibrary"
 PYTHON_RESULT_DIR = os.environ.get("UE_MCP_RESULT_DIR", tempfile.gettempdir())
-PYTHON_TIMEOUT = float(os.environ.get("UE_MCP_PYTHON_TIMEOUT", "60"))
+PYTHON_TIMEOUT = float(os.environ.get("UE_MCP_PYTHON_TIMEOUT", "300"))
 
 
 def _wrap_python(code: str, result_file: str) -> str:
