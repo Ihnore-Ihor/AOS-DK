@@ -20,6 +20,16 @@ enum class EAttackerCombatState : uint8
 	Cooling  UMETA(DisplayName = "Cooling")    // spin-down / generator heat dissipation
 };
 
+/** Manual (RMB) reload choreography: Lower (safe pose + open breech) -> Feed (torpedoes fly into the ring) -> Raise (re-arm). */
+UENUM(BlueprintType)
+enum class EAttackerReloadPhase : uint8
+{
+	None   UMETA(DisplayName = "None"),
+	Lower  UMETA(DisplayName = "Lower (Safe)"),
+	Feed   UMETA(DisplayName = "Feed (Load)"),
+	Raise  UMETA(DisplayName = "Raise (Re-arm)")
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAttackerCombatStateChanged, EAttackerCombatState, NewState, EAttackerCombatState, OldState);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnAttackerAmmoChanged, int32, RingAmmo, int32, RingCapacity, int32, ReserveAmmo, int32, ReserveCapacity);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAttackerResupplyRequest, bool, bResupplyRequested);
@@ -76,6 +86,10 @@ public:
 	/** RMB reload in progress (torpedoes travel from the reserve into the ring; firing is blocked). */
 	UFUNCTION(BlueprintPure, Category = "AOS_DK|Attacker")
 	bool IsReloading() const { return bReloading; }
+
+	/** Current phase of the manual-reload choreography (None when idle or during a dock refill). */
+	UFUNCTION(BlueprintPure, Category = "AOS_DK|Attacker")
+	EAttackerReloadPhase GetReloadPhase() const { return ReloadPhase; }
 
 	/** Ring and reserve empty: no shot is possible until the Shell rearms the drone. */
 	UFUNCTION(BlueprintPure, Category = "AOS_DK|Attacker")
@@ -142,6 +156,10 @@ protected:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "AOS_DK|Attacker", meta = (DisplayName = "On Reload Finished"))
 	void BP_OnReloadFinished();
+
+	/** Reload choreography phase changed (SFX hooks: lower / feed / raise). */
+	UFUNCTION(BlueprintImplementableEvent, Category = "AOS_DK|Attacker", meta = (DisplayName = "On Reload Phase Changed"))
+	void BP_OnReloadPhaseChanged(EAttackerReloadPhase NewPhase);
 
 	// --- Components ---------------------------------------------------------------------------
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -225,6 +243,46 @@ protected:
 	/** One-shot cost paid by the Shell core per manual reload, % of the core. */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload", meta = (ClampMin = "0", ClampMax = "25"))
 	float ReloadEnergyCost = 1.5f;
+
+	// --- Manual reload choreography (RMB) -----------------------------------------------------------
+	/** Phase A: nose dips, hulls brake, breech opens. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload|Anim", meta = (ClampMin = "0.05", Units = "s"))
+	float ReloadLowerTime = 0.35f;
+
+	/** Phase C: breech snaps shut, nose returns to the crosshair, firing unlocks at the end. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload|Anim", meta = (ClampMin = "0.05", Units = "s"))
+	float ReloadRaiseTime = 0.40f;
+
+	/** Keeps the breech open long enough to read even for 1-3 rounds. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload|Anim", meta = (ClampMin = "0", Units = "s"))
+	float ReloadMinFeedTime = 0.30f;
+
+	/** VisualRoot pitch in the safe pose (negative = nose down). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload|Anim", meta = (Units = "Degrees"))
+	float ReloadNosePitchDeg = -34.f;
+
+	/** VisualRoot yaw magnitude toward the Shell centre line (sign = -Sign(slot CombatOffset.Y)). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload|Anim", meta = (ClampMin = "0", Units = "Degrees"))
+	float ReloadInboardYawDeg = 16.f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload|Anim", meta = (ClampMin = "0", Units = "cm"))
+	float ReloadDropCm = 18.f;
+
+	/** HullRear slides aft by this much to open the ring groove (breech). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload|Anim", meta = (ClampMin = "0", Units = "cm"))
+	float ReloadBreechTravelCm = 11.f;
+
+	/** Fly-in time of one torpedo from the breech to its ring slot. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload|Anim", meta = (ClampMin = "0.02", Units = "s"))
+	float ReloadRoundFlightTime = 0.14f;
+
+	/** Spin-down time constant while Lower / Feed (replaces SpinDownTimeConstant). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload|Anim", meta = (ClampMin = "0.01", Units = "s"))
+	float ReloadSpinTau = 0.12f;
+
+	/** EaseOutBack strength of the Raise (0.10 ~ 2 degrees of nose overshoot). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Reload|Anim", meta = (ClampMin = "0", ClampMax = "0.5"))
+	float ReloadRaiseOvershoot = 0.10f;
 
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Attacker|Ammo")
 	bool bStartWithFullAmmo = true;
@@ -342,7 +400,7 @@ private:
 	void BuildRing();
 	FVector GetSlotLocalPosition(int32 Slot) const;
 	FTransform MakeSlotTransform(int32 Slot, bool bLoaded) const;
-	void SetSlotLoaded(int32 Slot, bool bLoaded);
+	void SetSlotLoaded(int32 Slot, bool bLoaded, bool bAnimated = false);
 	void FlushRingUpdates();
 
 	void SetCombatState(EAttackerCombatState NewState);
@@ -350,8 +408,16 @@ private:
 	void TickCombat(float Dt);
 	void TickSpin(float Dt);
 	void TickAmmo(float Dt);
-	void FinishReload();
 	void TickVisuals(float Dt);
+
+	// Reload choreography (Lower -> Feed -> Raise)
+	void SetReloadPhase(EAttackerReloadPhase NewPhase);
+	void TickReloadAnim(float Dt);
+	void EndFeed();
+	void CompleteReload();
+	void BeginRaiseFromService();
+	void FinalizeRoundFlights();
+	void ApplyReloadPose(float PoseAlpha, float BreechAlpha);
 	void UpdateAim();
 	float GetCombatSpinNormalized() const;
 
@@ -386,6 +452,25 @@ private:
 	bool bResupplyRequested = false;
 	bool bReloading = false;
 	bool bAmmoDirty = true;
+
+	struct FRoundFlight
+	{
+		int32 Slot = 0;
+		float T = 0.f;
+	};
+	TArray<FRoundFlight> RoundFlights;
+	EAttackerReloadPhase ReloadPhase = EAttackerReloadPhase::None;
+	float ReloadPhaseTime = 0.f;
+	float ReloadFeedTime = 0.f;
+	float ReloadSafeAlpha = 0.f;     // 0..1 pose weight (also scales the "armed" look down)
+	float ReloadPoseAlpha = 0.f;     // unclamped pose weight (EaseOutBack may overshoot < 0)
+	float ReloadBreechAlpha = 0.f;   // 0 closed .. 1 open
+	float ReloadRaiseDuration = 0.4f;
+	float ReloadRaiseFromPose = 1.f;
+	float ReloadRaiseFromBreech = 1.f;
+	float ReloadBubbleBurstTime = 0.f;
+	FTransform VisualRootBase = FTransform::Identity;
+	FTransform HullRearBase = FTransform::Identity;
 
 	FVector AimPoint = FVector::ZeroVector;
 	TWeakObjectPtr<AActor> AimActor;

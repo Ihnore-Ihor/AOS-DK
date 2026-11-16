@@ -32,6 +32,32 @@ namespace AttackerFx
 		Comp->SetReceivesDecals(false);
 	}
 
+	static float EaseInOutCubic(float X)
+	{
+		X = FMath::Clamp(X, 0.f, 1.f);
+		return X < 0.5f ? 4.f * X * X * X : 1.f - FMath::Pow(-2.f * X + 2.f, 3.f) * 0.5f;
+	}
+
+	/** Standard ease-out-back: overshoots 1 slightly, settles at exactly 1 for X = 1. */
+	static float EaseOutBack(float X, float C1)
+	{
+		X = FMath::Clamp(X, 0.f, 1.f);
+		const float C3 = C1 + 1.f;
+		const float Y = X - 1.f;
+		return 1.f + C3 * Y * Y * Y + C1 * Y * Y;
+	}
+
+	constexpr float BreechSnapTime = 0.12f;      // s: breech slams shut at the start of Raise
+	constexpr float BreechSnapOvershoot = 2.3f;  // EaseOutBack C1 -> ~1.5 cm over a 11 cm travel
+	constexpr float GlowFlashTime = 0.15f;       // s: glow flash at the start of Raise
+	constexpr float BubbleBurstDuration = 0.25f; // s
+	constexpr float BubbleBurstMul = 4.f;
+	constexpr float FlightStartAxial = -30.f;    // cm: breech point (ring-local X)
+	constexpr float FlightStartRadius01 = 0.15f; // fraction of RingRadius
+	constexpr float FlightStartScale = 0.35f;
+	constexpr float RingAlignHalfLife = 0.07f;   // s: de-rotation of the ring to slot 0 @ 12 o'clock
+	constexpr double RingSlot0TopDeg = 90.0;     // ring rotates about +X: +Y -> +Z at 90 deg
+
 	/** Push a Niagara float only when it changed noticeably (relative 2 %). */
 	static void SetFxFloat(UNiagaraComponent* Fx, FName Name, float Value, float& LastValue)
 	{
@@ -91,6 +117,9 @@ void ASubDrone_Attacker::OnConstruction(const FTransform& Transform)
 void ASubDrone_Attacker::BeginPlay()
 {
 	Super::BeginPlay();
+
+	VisualRootBase = VisualRoot->GetRelativeTransform();
+	HullRearBase = HullRear->GetRelativeTransform();
 
 	if (SlotLoaded.Num() != RingSlotCount)
 	{
@@ -157,7 +186,7 @@ void ASubDrone_Attacker::BuildRing()
 	TorpedoRing->AddInstances(Transforms, /*bShouldReturnIndices*/ false, /*bWorldSpace*/ false);
 }
 
-void ASubDrone_Attacker::SetSlotLoaded(int32 Slot, bool bLoaded)
+void ASubDrone_Attacker::SetSlotLoaded(int32 Slot, bool bLoaded, bool bAnimated)
 {
 	if (SlotLoaded[Slot] == static_cast<uint8>(bLoaded))
 	{
@@ -165,8 +194,22 @@ void ASubDrone_Attacker::SetSlotLoaded(int32 Slot, bool bLoaded)
 	}
 	SlotLoaded[Slot] = bLoaded ? 1 : 0;
 	CurrentRingAmmo += bLoaded ? 1 : -1;
-	DirtySlots.AddUnique(Slot);
 	bAmmoDirty = true;
+
+	if (bLoaded && bAnimated)
+	{
+		// Manual feed: the torpedo flies breech -> slot (TickReloadAnim); the slot is NOT queued for the instant flush.
+		FRoundFlight& Flight = RoundFlights.AddDefaulted_GetRef();
+		Flight.Slot = Slot;
+		Flight.T = 0.f;
+		const FVector Slot0 = GetSlotLocalPosition(Slot);
+		const FVector Radial = FVector(0.f, Slot0.Y, Slot0.Z).GetSafeNormal() * (RingRadius * AttackerFx::FlightStartRadius01);
+		TorpedoRing->UpdateInstanceTransform(Slot,
+			FTransform(FQuat::Identity, FVector(AttackerFx::FlightStartAxial, Radial.Y, Radial.Z), FVector(AttackerFx::FlightStartScale)),
+			false, false, true);
+		return;
+	}
+	DirtySlots.AddUnique(Slot);
 }
 
 void ASubDrone_Attacker::FlushRingUpdates()
@@ -235,6 +278,7 @@ void ASubDrone_Attacker::Tick(float DeltaSeconds)
 	}
 
 	TickCombat(DeltaSeconds);
+	TickReloadAnim(DeltaSeconds);
 	TickSpin(DeltaSeconds);
 	TickAmmo(DeltaSeconds);
 	FlushRingUpdates();
@@ -351,6 +395,9 @@ float ASubDrone_Attacker::GetCombatSpinNormalized() const
 
 void ASubDrone_Attacker::TickSpin(float Dt)
 {
+	// Lower / Feed: hulls brake to a stop and the ring parks with slot 0 at 12 o'clock.
+	const bool bReloadHold = ReloadPhase == EAttackerReloadPhase::Lower || ReloadPhase == EAttackerReloadPhase::Feed;
+
 	float Target = FMath::Lerp(FormationSpinAlpha, ArmedSpinAlpha, GetDeployBlend());
 	if (GetMobilityState() == ESubDroneMobilityState::Docked)
 	{
@@ -360,10 +407,14 @@ void ASubDrone_Attacker::TickSpin(float Dt)
 	{
 		Target = 1.f;
 	}
+	if (bReloadHold)
+	{
+		Target = 0.f;
+	}
 
-	const float Tau = Target > SpinAlpha ? SpinUpTimeConstant : SpinDownTimeConstant;
+	const float Tau = bReloadHold ? ReloadSpinTau : (Target > SpinAlpha ? SpinUpTimeConstant : SpinDownTimeConstant);
 	SpinAlpha = MotorStep(SpinAlpha, Target, Tau, Dt);
-	if (SpinAlpha < 1e-4f && Target <= 0.f)
+	if (SpinAlpha < 1e-4f && Target <= 0.f && !bReloadHold)
 	{
 		SpinAlpha = 0.f;
 		RingSpinDegPerSec = 0.f;
@@ -375,7 +426,16 @@ void ASubDrone_Attacker::TickSpin(float Dt)
 
 	FrontAngleDeg = WrapDegrees(FrontAngleDeg + OmegaFront * Dt);
 	RearAngleDeg = WrapDegrees(RearAngleDeg + OmegaFront * RearSpinRatio * Dt);
-	RingAngleDeg = WrapDegrees(RingAngleDeg + static_cast<double>(RingSpinDegPerSec) * Dt);
+	if (bReloadHold)
+	{
+		RingSpinDegPerSec = 0.f;
+		RingAngleDeg = WrapDegrees(RingAngleDeg + FMath::FindDeltaAngleDegrees(RingAngleDeg, AttackerFx::RingSlot0TopDeg) *
+			static_cast<double>(HalfLifeAlpha(AttackerFx::RingAlignHalfLife, Dt)));
+	}
+	else
+	{
+		RingAngleDeg = WrapDegrees(RingAngleDeg + static_cast<double>(RingSpinDegPerSec) * Dt);
+	}
 
 	HullFront->SetRelativeRotation(FQuat(FVector::XAxisVector, FMath::DegreesToRadians(FrontAngleDeg)));
 	HullRear->SetRelativeRotation(FQuat(FVector::XAxisVector, FMath::DegreesToRadians(RearAngleDeg)));
@@ -400,7 +460,9 @@ void ASubDrone_Attacker::TickAmmo(float Dt)
 	}
 
 	// Tier 2 -> 1: the ring is fed from the reserve only by a manual reload (RMB) or while serviced.
-	const bool bFeeding = (bReloading || bServiced) && !IsRingFull() && InternalReserveAmmo > 0;
+	// Manual reload feeds only in the Feed phase (Lower opens the breech first, Raise closes it). Dock refill is instant-ish, no fly-in.
+	const bool bManualFeed = bReloading && ReloadPhase == EAttackerReloadPhase::Feed && !bServiced;
+	const bool bFeeding = (bManualFeed || bServiced) && !IsRingFull() && InternalReserveAmmo > 0;
 	if (bFeeding)
 	{
 		const float Interval = bServiced ? DockedRingRefillInterval : ReloadRoundInterval;
@@ -409,7 +471,7 @@ void ASubDrone_Attacker::TickAmmo(float Dt)
 		{
 			if (!SlotLoaded[Slot])
 			{
-				SetSlotLoaded(Slot, true);
+				SetSlotLoaded(Slot, true, bManualFeed);
 				--InternalReserveAmmo;
 				RingRefillAccumulator -= Interval;
 			}
@@ -422,7 +484,7 @@ void ASubDrone_Attacker::TickAmmo(float Dt)
 	}
 	if (bReloading && (IsRingFull() || InternalReserveAmmo <= 0))
 	{
-		FinishReload();
+		EndFeed();
 	}
 
 	// Resupply request: reserve exhausted and the policy needs the Shell.
@@ -491,10 +553,166 @@ void ASubDrone_Attacker::StartReload()
 		SetCombatState(EAttackerCombatState::Cooling); // the feed and the launcher never run together
 	}
 	bAmmoDirty = true;
+	RoundFlights.Reset();
+	ReloadFeedTime = 0.f;
+	SetReloadPhase(EAttackerReloadPhase::Lower);
 	BP_OnReloadStarted(FMath::Min(RingSlotCount - CurrentRingAmmo, InternalReserveAmmo));
 }
 
-void ASubDrone_Attacker::FinishReload()
+// ------------------------------------------------------------------------------- reload choreography
+void ASubDrone_Attacker::SetReloadPhase(EAttackerReloadPhase NewPhase)
+{
+	if (NewPhase == ReloadPhase)
+	{
+		return;
+	}
+	ReloadPhase = NewPhase;
+	ReloadPhaseTime = 0.f;
+	switch (NewPhase)
+	{
+	case EAttackerReloadPhase::Feed:
+		ReloadFeedTime = 0.f;
+		ReloadBubbleBurstTime = AttackerFx::BubbleBurstDuration; // breech opened: gas burst
+		break;
+	case EAttackerReloadPhase::Raise:
+		ReloadRaiseDuration = ReloadRaiseTime;
+		ReloadRaiseFromPose = FMath::Max(ReloadPoseAlpha, 0.f);
+		ReloadRaiseFromBreech = FMath::Max(ReloadBreechAlpha, 0.f);
+		ReloadBubbleBurstTime = AttackerFx::BubbleBurstDuration; // purge before closing
+		break;
+	default:
+		break;
+	}
+	const UWorld* World = GetWorld();
+	UE_LOG(LogSubDrone, Log, TEXT("%s reload phase -> %s (t=%.3f)"), *GetName(),
+		*UEnum::GetValueAsString(NewPhase), World ? World->GetTimeSeconds() : 0.0);
+	BP_OnReloadPhaseChanged(NewPhase);
+}
+
+void ASubDrone_Attacker::ApplyReloadPose(float PoseAlpha, float BreechAlpha)
+{
+	ReloadPoseAlpha = PoseAlpha;
+	ReloadBreechAlpha = BreechAlpha;
+	ReloadSafeAlpha = FMath::Clamp(PoseAlpha, 0.f, 1.f);
+
+	// Inboard = toward the Shell centre line = opposite to the slot's lateral combat offset.
+	const USubDroneBayComponent* BayPtr = GetBay();
+	const float OffsetY = BayPtr ? static_cast<float>(BayPtr->GetCombatOffset(GetSlotIndex()).Y) : 1.f;
+	const float YawSign = OffsetY >= 0.f ? -1.f : 1.f;
+
+	const FRotator PoseRot(ReloadNosePitchDeg * PoseAlpha, YawSign * ReloadInboardYawDeg * PoseAlpha, 0.f);
+	VisualRoot->SetRelativeTransform(VisualRootBase * FTransform(PoseRot, FVector(0.f, 0.f, -ReloadDropCm * PoseAlpha)));
+
+	// Translation only: the hull roll is owned by TickSpin.
+	HullRear->SetRelativeLocation(HullRearBase.GetLocation() + FVector(-ReloadBreechTravelCm * BreechAlpha, 0.f, 0.f));
+}
+
+void ASubDrone_Attacker::FinalizeRoundFlights()
+{
+	for (const FRoundFlight& Flight : RoundFlights)
+	{
+		TorpedoRing->UpdateInstanceTransform(Flight.Slot, MakeSlotTransform(Flight.Slot, SlotLoaded[Flight.Slot] != 0), false, false, true);
+	}
+	RoundFlights.Reset();
+}
+
+void ASubDrone_Attacker::BeginRaiseFromService()
+{
+	// Docking / service station mid-reload: the hardware is refilled anyway -> skip the feed, re-arm quickly. No energy refund.
+	FinalizeRoundFlights();
+	SetReloadPhase(EAttackerReloadPhase::Raise);
+	ReloadRaiseDuration = ReloadRaiseTime * 0.5f;
+}
+
+void ASubDrone_Attacker::TickReloadAnim(float Dt)
+{
+	ReloadBubbleBurstTime = FMath::Max(0.f, ReloadBubbleBurstTime - Dt);
+	if (ReloadPhase == EAttackerReloadPhase::None)
+	{
+		return;
+	}
+	ReloadPhaseTime += Dt;
+
+	if ((ReloadPhase == EAttackerReloadPhase::Lower || ReloadPhase == EAttackerReloadPhase::Feed) &&
+		(IsBeingServiced() || GetMobilityState() == ESubDroneMobilityState::Docking))
+	{
+		BeginRaiseFromService();
+	}
+
+	// Torpedoes in flight: breech -> slot, EaseOutBack, scale 0.35 -> 1.
+	for (int32 Index = RoundFlights.Num() - 1; Index >= 0; --Index)
+	{
+		FRoundFlight& Flight = RoundFlights[Index];
+		Flight.T += Dt;
+		const float X = FMath::Clamp(Flight.T / FMath::Max(ReloadRoundFlightTime, 0.01f), 0.f, 1.f);
+		if (X >= 1.f)
+		{
+			TorpedoRing->UpdateInstanceTransform(Flight.Slot, MakeSlotTransform(Flight.Slot, SlotLoaded[Flight.Slot] != 0), false, false, true);
+			RoundFlights.RemoveAtSwap(Index, EAllowShrinking::No);
+			continue;
+		}
+		const float E = AttackerFx::EaseOutBack(X, 1.f);
+		const FVector SlotPos = GetSlotLocalPosition(Flight.Slot);
+		const FVector Radial = FVector(0.f, SlotPos.Y, SlotPos.Z).GetSafeNormal() * (RingRadius * AttackerFx::FlightStartRadius01);
+		const FVector StartPos(AttackerFx::FlightStartAxial, Radial.Y, Radial.Z);
+		TorpedoRing->UpdateInstanceTransform(Flight.Slot,
+			FTransform(FQuat::Identity, FMath::Lerp(StartPos, SlotPos, static_cast<double>(E)),
+				FVector(FMath::Lerp(AttackerFx::FlightStartScale, 1.f, FMath::Clamp(E, 0.f, 1.f)))),
+			false, false, true);
+	}
+
+	switch (ReloadPhase)
+	{
+	case EAttackerReloadPhase::Lower:
+	{
+		const float X = FMath::Clamp(ReloadPhaseTime / FMath::Max(ReloadLowerTime, 0.01f), 0.f, 1.f);
+		ApplyReloadPose(AttackerFx::EaseInOutCubic(X), FMath::SmoothStep(0.6f, 1.f, X)); // breech opens in the last 40 %
+		if (X >= 1.f)
+		{
+			SetReloadPhase(EAttackerReloadPhase::Feed);
+		}
+		break;
+	}
+	case EAttackerReloadPhase::Feed:
+		ReloadFeedTime += Dt;
+		ApplyReloadPose(1.f, 1.f);
+		break;
+
+	case EAttackerReloadPhase::Raise:
+	{
+		const float U = FMath::Clamp(ReloadPhaseTime / FMath::Max(ReloadRaiseDuration, 0.01f), 0.f, 1.f);
+		const float C1 = ReloadRaiseOvershoot * 10.f;
+		const float Pose = ReloadRaiseFromPose * (1.f - AttackerFx::EaseOutBack(U, C1));
+		const float UB = FMath::Clamp(ReloadPhaseTime / AttackerFx::BreechSnapTime, 0.f, 1.f);
+		const float Breech = ReloadRaiseFromBreech * (1.f - AttackerFx::EaseOutBack(UB, AttackerFx::BreechSnapOvershoot));
+		if (U >= 1.f)
+		{
+			ApplyReloadPose(0.f, 0.f);
+			SetReloadPhase(EAttackerReloadPhase::None);
+			CompleteReload();
+		}
+		else
+		{
+			ApplyReloadPose(Pose, Breech);
+		}
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+void ASubDrone_Attacker::EndFeed()
+{
+	// Replaces the old direct FinishReload: wait for the last torpedo to land (and the minimum readable feed time), then re-arm.
+	if (ReloadPhase != EAttackerReloadPhase::Feed || !RoundFlights.IsEmpty() || ReloadFeedTime < ReloadMinFeedTime)
+	{
+		return;
+	}
+	SetReloadPhase(EAttackerReloadPhase::Raise);
+}
+
+void ASubDrone_Attacker::CompleteReload()
 {
 	bReloading = false;
 	bAmmoDirty = true;
@@ -503,7 +721,7 @@ void ASubDrone_Attacker::FinishReload()
 
 void ASubDrone_Attacker::TickVisuals(float Dt)
 {
-	const float Armed = FMath::SmoothStep(0.f, 1.f, GetDeployBlend());
+	const float Armed = FMath::SmoothStep(0.f, 1.f, GetDeployBlend()) * (1.f - ReloadSafeAlpha);
 	const float Combat = GetCombatSpinNormalized();
 	const float OmegaFront = SpinAlpha * MaxSpinDegPerSec;
 
@@ -511,7 +729,11 @@ void ASubDrone_Attacker::TickVisuals(float Dt)
 	AlertAlpha = DampTo(AlertAlpha, bResupplyRequested ? 1.f : 0.f, 0.15f, Dt);
 
 	const float BaseGlow = FMath::Lerp(GlowFormation, GlowArmed, Armed);
-	const float Glow = FMath::Lerp(BaseGlow, GlowMax, FMath::Pow(Combat, 1.5f));
+	float Glow = FMath::Lerp(BaseGlow, GlowMax, FMath::Pow(Combat, 1.5f));
+	if (ReloadPhase == EAttackerReloadPhase::Raise && ReloadPhaseTime < AttackerFx::GlowFlashTime)
+	{
+		Glow = FMath::Max(Glow, GlowArmed * 2.f); // re-arm flash
+	}
 	const float Hz = FMath::Lerp(FMath::Lerp(PulseIdleHz, PulseArmedHz, Armed), PulseMaxHz, Combat);
 
 	// Pulse PHASE is integrated on the CPU: changing the frequency never makes the pulse jump.
@@ -577,7 +799,8 @@ void ASubDrone_Attacker::TickVisuals(float Dt)
 		{
 			const float Speed01 = FMath::Clamp(static_cast<float>(GetKinematicVelocity().Size()) / 1500.f, 0.f, 1.f);
 			AttackerFx::SetFxFloat(HullBubblesFX, AttackerFx::BubbleRate,
-				BubbleBaseRate + BubbleSpeedRate * Speed01 + BubbleSpinRate * SpinAlpha, LastBubbleRate);
+				(BubbleBaseRate + BubbleSpeedRate * Speed01 + BubbleSpinRate * SpinAlpha) *
+					(ReloadBubbleBurstTime > 0.f ? AttackerFx::BubbleBurstMul : 1.f), LastBubbleRate);
 		}
 	}
 }
@@ -785,6 +1008,11 @@ bool ASubDrone_Attacker::GetDesiredFacing(FQuat& OutFacing) const
 void ASubDrone_Attacker::OnMobilityStateEntered(ESubDroneMobilityState NewState, ESubDroneMobilityState OldState)
 {
 	Super::OnMobilityStateEntered(NewState, OldState);
+	if ((NewState == ESubDroneMobilityState::Docking || NewState == ESubDroneMobilityState::Docked) &&
+		(ReloadPhase == EAttackerReloadPhase::Lower || ReloadPhase == EAttackerReloadPhase::Feed))
+	{
+		BeginRaiseFromService();
+	}
 	if (NewState != ESubDroneMobilityState::Deployed)
 	{
 		// Leaving the combat position drops a held trigger: after the next R the player must press LMB again.
