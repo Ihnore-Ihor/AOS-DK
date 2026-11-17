@@ -91,6 +91,19 @@ public:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Weather|Rain")
 	float WaterSurfaceZ = 40.f;
 
+	/**
+	 * Rain lattice (cm). Streaks are wrapped by M_AOS_RainStreak with period (5000, 5000, 2000) and splashes by M_AOS_RainSplash with
+	 * period (3000, 3000), both around the camera, so the rain field is a periodic lattice anchored in the world. The Niagara component
+	 * hops with the camera ONLY in whole multiples of the common period: the picture is identical after a hop (nothing drags or pops),
+	 * while the emitter bounds stay around the viewer, so the rain is complete anywhere on the map (open ocean included).
+	 * RainLatticeXY must be a multiple of lcm(5000, 3000) = 15000; RainLatticeZ a multiple of 2000.
+	 */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Weather|Rain", meta = (ClampMin = "15000", Units = "cm"))
+	float RainLatticeXY = 15000.f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Weather|Rain", meta = (ClampMin = "2000", Units = "cm"))
+	float RainLatticeZ = 2000.f;
+
 	/** 0 = time-based seed; fixed seed gives reproducible demos. */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Weather|Random")
 	int32 Seed = 0;
@@ -126,6 +139,9 @@ private:
 	void StepFsm(float Dt);
 	void UpdateClouds();
 	void UpdateRain();
+	bool GetViewLocation(FVector& OutLocation) const;
+	/** Lattice node nearest to the view; keeps the current node while the view is within half a cell + margin (no flip-flop). */
+	FVector SnapRainOrigin(const FVector& View, const FVector& Current) const;
 	void Publish();
 	float RandRange(const FVector2D& Range);
 

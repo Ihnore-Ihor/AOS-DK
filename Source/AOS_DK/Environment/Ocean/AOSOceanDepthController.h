@@ -130,6 +130,43 @@ public:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Light", meta = (ClampMin = "0"))
 	float SunVolumetricScatteringUnderwater = 5.f;
 
+	// --- Storm shadow softening (overcast sun) ----------------------------------------------------
+	/**
+	 * Under thick storm cloud the sun is no longer a disc but a bright patch of sky: shadow penumbrae widen and the contrast fades.
+	 * Driven by the published StormAlpha (AAOSWeatherDirector -> UAOSEnvironmentStateSubsystem): 0 = authored crisp sun,
+	 * 1 = fully overcast. Back to the authored values when the sky clears (Storm 0) and at EndPlay.
+	 */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Light|Storm", meta = (ClampMin = "0", ClampMax = "1"))
+	float StormShadowStartAlpha = 0.05f;
+
+	/** StormAlpha at which the softening is complete. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Light|Storm", meta = (ClampMin = "0", ClampMax = "1"))
+	float StormShadowFullAlpha = 0.6f;
+
+	/**
+	 * Sun source angle (deg) at full storm. The authored sun disc is ~0.7 deg, which gives razor-sharp edges. Virtual Shadow Maps clamp the
+	 * directional penumbra to r.Shadow.Virtual.SMRT.MaxRayAngleFromLight (engine default 0.03 rad = 1.7 deg), so this only has an effect
+	 * together with StormShadowMaxRayAngleRad below.
+	 */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Light|Storm", meta = (ClampMin = "0", Units = "deg"))
+	float StormSunSourceAngle = 25.f;
+
+	/**
+	 * r.Shadow.Virtual.SMRT.MaxRayAngleFromLight (rad) at full storm. Must be >= StormSunSourceAngle in radians (25 deg = 0.44 rad), otherwise VSM
+	 * clamps the penumbra back to ~1.7 deg and storm shadows stay crisp. Raised with the storm, restored to the project value when it clears
+	 * and at EndPlay; the crisp clear-sky sun (0.7 deg) is below the engine clamp, so Storm 0 is unaffected.
+	 */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Light|Storm", meta = (ClampMin = "0", ClampMax = "1.5", Units = "rad"))
+	float StormShadowMaxRayAngleRad = 0.5f;
+
+	/** Sun soft source angle (deg) at full storm (extra penumbra, Virtual Shadow Maps). */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Light|Storm", meta = (ClampMin = "0", Units = "deg"))
+	float StormSunSoftSourceAngle = 8.f;
+
+	/** ShadowAmount (shadow darkness, 1 = authored) at full storm. */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Light|Storm", meta = (ClampMin = "0", ClampMax = "1"))
+	float StormShadowAmount = 0.1f;
+
 	// --- Fog presets ------------------------------------------------------------------------------
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Ocean|Fog")
 	FAOSFogPreset WaterFog;
@@ -209,6 +246,14 @@ private:
 
 	float BaseSunIntensity = 0.f;
 	float BaseSunVolumetric = 1.f;
+	float BaseSunSourceAngle = 0.5357f;
+	float BaseSunSoftAngle = 0.f;
+	float BaseSunShadowAmount = 1.f;
+	/** Last storm softening written to the sun (quantised, -1 = never): every change recreates the light proxy / invalidates cached VSM pages. */
+	float AppliedShadowSoft = -1.f;
+	/** r.Shadow.Virtual.SMRT.MaxRayAngleFromLight as found at BeginPlay (restored when the storm clears / at EndPlay). */
+	float BaseMaxRayAngleRad = 0.03f;
+	bool bBaseMaxRayCaptured = false;
 	float BaseSkyIntensity = 1.f;
 	float BaseSkyVolumetric = 1.f;
 	FLinearColor PPAmbientColor = FLinearColor(0.01f, 0.08f, 0.18f, 1.f);

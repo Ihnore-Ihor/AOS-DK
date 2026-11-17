@@ -27,6 +27,7 @@ namespace AOSOceanParams
 	static constexpr float ReapplyDepthStepM = 0.25f;
 	static const FName WaveTime(TEXT("WaveTime"));
 	static constexpr int32 CollectionWaves = 8;
+	static const TCHAR* const VsmMaxRayAngleCVar = TEXT("r.Shadow.Virtual.SMRT.MaxRayAngleFromLight");
 }
 
 AAOSOceanDepthController::AAOSOceanDepthController()
@@ -142,6 +143,17 @@ void AAOSOceanDepthController::CaptureBaseline()
 	{
 		BaseSunIntensity = Sun->GetLightComponent()->Intensity;
 		BaseSunVolumetric = Sun->GetLightComponent()->VolumetricScatteringIntensity;
+		if (const UDirectionalLightComponent* Dir = Cast<UDirectionalLightComponent>(Sun->GetLightComponent()))
+		{
+			BaseSunSourceAngle = Dir->LightSourceAngle;
+			BaseSunSoftAngle = Dir->LightSourceSoftAngle;
+			BaseSunShadowAmount = Dir->ShadowAmount;
+		}
+	}
+	if (const IConsoleVariable* MaxRay = IConsoleManager::Get().FindConsoleVariable(AOSOceanParams::VsmMaxRayAngleCVar))
+	{
+		BaseMaxRayAngleRad = MaxRay->GetFloat();
+		bBaseMaxRayCaptured = true;
 	}
 	if (SkyLight && SkyLight->GetLightComponent())
 	{
@@ -303,6 +315,30 @@ void AAOSOceanDepthController::Apply(bool bUnderwater, float DepthM)
 		SunLight->SetVolumetricScatteringIntensity(bUnderwater
 			? SunVolumetricScatteringUnderwater * SunFactor * Aphotic * Env.SunScale
 			: BaseSunVolumetric * Env.SunScale);
+
+		// Overcast: the intensity is already dimmed by Env.SunScale, but the shadow EDGES stayed razor-sharp (source angle ~0.5 deg).
+		// Widen the penumbra and fade the shadow contrast with the storm. Quantised so a transition rewrites the light only ~25 times.
+		const float StormEnd = FMath::Max(StormShadowFullAlpha, StormShadowStartAlpha + 0.01f);
+		const float Soft = FMath::SmoothStep(StormShadowStartAlpha, StormEnd, Env.StormAlpha);
+		const float SoftQ = FMath::RoundToFloat(Soft * 25.f) / 25.f;
+		if (!FMath::IsNearlyEqual(SoftQ, AppliedShadowSoft))
+		{
+			AppliedShadowSoft = SoftQ;
+			if (UDirectionalLightComponent* Dir = Cast<UDirectionalLightComponent>(SunLight))
+			{
+				Dir->SetLightSourceAngle(FMath::Lerp(BaseSunSourceAngle, FMath::Max(StormSunSourceAngle, BaseSunSourceAngle), SoftQ));
+				Dir->SetLightSourceSoftAngle(FMath::Lerp(BaseSunSoftAngle, FMath::Max(StormSunSoftSourceAngle, BaseSunSoftAngle), SoftQ));
+				Dir->SetShadowAmount(FMath::Lerp(BaseSunShadowAmount, FMath::Min(StormShadowAmount, BaseSunShadowAmount), SoftQ));
+			}
+			// VSM caps the directional penumbra at MaxRayAngleFromLight: raise the cap with the storm so the wide source angle is honoured.
+			if (bBaseMaxRayCaptured)
+			{
+				if (IConsoleVariable* MaxRay = IConsoleManager::Get().FindConsoleVariable(AOSOceanParams::VsmMaxRayAngleCVar))
+				{
+					MaxRay->Set(FMath::Lerp(BaseMaxRayAngleRad, FMath::Max(StormShadowMaxRayAngleRad, BaseMaxRayAngleRad), SoftQ), ECVF_SetByCode);
+				}
+			}
+		}
 	}
 
 	if (USkyLightComponent* Sky = SkyLight ? SkyLight->GetLightComponent() : nullptr)

@@ -230,6 +230,29 @@ void AAOSWeatherDirector::UpdateClouds()
 	if (FMath::Abs(StormLayout - LastStormClouds) > Epsilon) { CloudMID->SetScalarParameterValue(CloudStorm, StormLayout); LastStormClouds = StormLayout; }
 }
 
+bool AAOSWeatherDirector::GetViewLocation(FVector& OutLocation) const
+{
+	if (const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
+	{
+		OutLocation = Camera->GetCameraLocation();
+		return true;
+	}
+	return false;
+}
+
+FVector AAOSWeatherDirector::SnapRainOrigin(const FVector& View, const FVector& Current) const
+{
+	const double LXY = FMath::Max(static_cast<double>(RainLatticeXY), 15000.0);
+	const double LZ = FMath::Max(static_cast<double>(RainLatticeZ), 2000.0);
+	const double MarginXY = 0.1 * LXY;
+	const double MarginZ = 0.1 * LZ;
+	FVector Out = Current;
+	if (FMath::Abs(View.X - Current.X) > 0.5 * LXY + MarginXY) { Out.X = FMath::RoundToDouble(View.X / LXY) * LXY; }
+	if (FMath::Abs(View.Y - Current.Y) > 0.5 * LXY + MarginXY) { Out.Y = FMath::RoundToDouble(View.Y / LXY) * LXY; }
+	if (FMath::Abs(View.Z - Current.Z) > 0.5 * LZ + MarginZ)   { Out.Z = FMath::RoundToDouble(View.Z / LZ) * LZ; }
+	return Out;
+}
+
 void AAOSWeatherDirector::UpdateRain()
 {
 	UWorld* World = GetWorld();
@@ -237,10 +260,19 @@ void AAOSWeatherDirector::UpdateRain()
 	{
 		return;
 	}
-	const bool bWanted = RainRate01 > 0.01f && !(OceanController && OceanController->IsCameraUnderwater());
+	const bool bUnderwater = OceanController && OceanController->IsCameraUnderwater();
+	const bool bWanted = RainRate01 > 0.01f && !bUnderwater;
+
+	FVector View = FVector::ZeroVector;
+	const bool bHasView = GetViewLocation(View);
+
 	if (!RainComponent && bWanted)
 	{
-		RainComponent = UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, RainSystem, GetActorLocation(),
+		// Stateless Niagara particles are re-evaluated against the component transform every frame, so the component must never follow
+		// the camera continuously (drops would be dragged along). It hops only by whole lattice periods (see RainLatticeXY/Z), which
+		// leaves the wrapped rain field unchanged, and M_AOS_RainStreak / M_AOS_RainSplash do the per-frame wrap around the view.
+		const FVector Origin = bHasView ? SnapRainOrigin(View, FVector(0.0, 0.0, 0.0)) : FVector::ZeroVector;
+		RainComponent = UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, RainSystem, Origin,
 			FRotator::ZeroRotator, FVector::OneVector, /*bAutoDestroy*/ false, /*bAutoActivate*/ false);
 	}
 	if (!RainComponent)
@@ -249,9 +281,11 @@ void AAOSWeatherDirector::UpdateRain()
 	}
 	if (bWanted)
 	{
-		if (const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
+		if (bHasView)
 		{
-			RainComponent->SetWorldLocation(Camera->GetCameraLocation());
+			const FVector Current = RainComponent->GetComponentLocation();
+			const FVector Target = SnapRainOrigin(View, Current);
+			if (!Target.Equals(Current, 1.0)) { RainComponent->SetWorldLocation(Target); }
 		}
 		RainComponent->SetVariableFloat(TEXT("User.RainRate"), 12000.f * RainRate01);
 		RainComponent->SetVariableFloat(TEXT("User.WaterZ"), WaterSurfaceZ);
@@ -259,7 +293,9 @@ void AAOSWeatherDirector::UpdateRain()
 	}
 	else if (RainComponent->IsActive())
 	{
-		RainComponent->Deactivate();
+		// Underwater: cut every live drop at once (a soft Deactivate would let the last 1.6 s of streaks finish under the surface).
+		if (bUnderwater) { RainComponent->DeactivateImmediate(); }
+		else { RainComponent->Deactivate(); }
 	}
 }
 

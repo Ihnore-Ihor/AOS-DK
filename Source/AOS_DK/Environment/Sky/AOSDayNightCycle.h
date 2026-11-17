@@ -84,6 +84,17 @@ public:
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Env|Moon", meta = (ClampMin = "0"))
 	float MoonDiskColorScale = 1.5f;
 
+	/**
+	 * Storm overcast hides the moon. The moonlight and its atmosphere disk (the disk is drawn by the sky from the light itself, so a
+	 * dimmed-but-visible light still shows through gaps / thin spots of the volumetric cloud layer) fade to zero between these two
+	 * StormAlpha values and come back when the sky clears. 0 / 0 disables the fade.
+	 */
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Env|Moon", meta = (ClampMin = "0", ClampMax = "1"))
+	float MoonStormFadeStartAlpha = 0.02f;
+
+	UPROPERTY(EditAnywhere, Category = "AOS_DK|Env|Moon", meta = (ClampMin = "0", ClampMax = "1"))
+	float MoonStormFadeEndAlpha = 0.35f;
+
 	/** Rate of the heavy publish step (intensity, factors, priority). Rotations are per-frame regardless. */
 	UPROPERTY(EditAnywhere, Category = "AOS_DK|Env|Update", meta = (ClampMin = "1", ClampMax = "60"))
 	float UpdateHz = 10.f;

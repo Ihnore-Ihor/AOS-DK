@@ -226,13 +226,22 @@ void AAOSDayNightCycle::Step()
 {
 	const float El = UpdateOrientation();
 
+	UWorld* World = GetWorld();
+	UAOSEnvironmentStateSubsystem* Env = World ? World->GetSubsystem<UAOSEnvironmentStateSubsystem>() : nullptr;
+
 	if (Moon)
 	{
 		if (ULightComponent* MoonLight = Moon->GetLightComponent())
 		{
 			const float Surface = OceanController ? OceanController->GetSurfaceLightFactor() : 1.f;
-			const float Target = MoonIntensity * FMath::SmoothStep(0.f, 10.f, -El) * Surface;
-			if (FMath::Abs(Target - LastMoonIntensity) > 0.002f * FMath::Max(MoonIntensity, 0.01f))
+			// Heavy overcast hides the moon completely (light + atmosphere disk): never a disk peeking through cloud gaps.
+			const float StormAlpha = Env ? Env->GetState().StormAlpha : 0.f;
+			const float StormFade = (MoonStormFadeEndAlpha > MoonStormFadeStartAlpha)
+				? 1.f - FMath::SmoothStep(MoonStormFadeStartAlpha, MoonStormFadeEndAlpha, StormAlpha)
+				: 1.f;
+			const float Target = MoonIntensity * FMath::SmoothStep(0.f, 10.f, -El) * Surface * StormFade;
+			const bool bZeroChanged = (Target <= KINDA_SMALL_NUMBER) != (LastMoonIntensity <= KINDA_SMALL_NUMBER);
+			if (bZeroChanged || FMath::Abs(Target - LastMoonIntensity) > 0.002f * FMath::Max(MoonIntensity, 0.01f))
 			{
 				LastMoonIntensity = Target;
 				MoonLight->SetIntensity(Target);
@@ -256,11 +265,8 @@ void AAOSDayNightCycle::Step()
 	{
 		NightExposure->BlendWeight = bClampNightExposure ? NightFactor : 0.f;
 	}
-	if (UWorld* World = GetWorld())
+	if (Env)
 	{
-		if (UAOSEnvironmentStateSubsystem* Env = World->GetSubsystem<UAOSEnvironmentStateSubsystem>())
-		{
-			Env->PublishDayNight(TimeOfDayH, El, DayFactor, NightFactor);
-		}
+		Env->PublishDayNight(TimeOfDayH, El, DayFactor, NightFactor);
 	}
 }
